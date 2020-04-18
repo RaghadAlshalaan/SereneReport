@@ -26,6 +26,7 @@ from sklearn.preprocessing import StandardScaler
 X = df_j3.values
 X = np.nan_to_num(X)
 Clus_dataSet = StandardScaler().fit_transform(X)
+Clus_dataSet
 
 #elbow method
 Sum_of_squared_distances = []
@@ -34,12 +35,18 @@ for k in K:
     km = KMeans(init = "k-means++", n_clusters = k)
     km = km.fit(Clus_dataSet)
     Sum_of_squared_distances.append(km.inertia_)
+plt.plot(K, Sum_of_squared_distances, 'bx-')
+plt.xlabel('k')
+plt.ylabel('Sum_of_squared_distances')
+plt.title('Elbow Method For Optimal k')
+plt.show()
 
 
 clusterNum = 4
 k_means = KMeans(init = "k-means++", n_clusters = clusterNum)
 k_means.fit(Clus_dataSet)
 labels = k_means.labels_
+print(labels)
 
 df_j3["Label"] = labels
 df_j3["Label"] = pd.Categorical(df_j3["Label"], df_j3["Label"].unique())
@@ -91,6 +98,11 @@ y[0:5]
 
 
 X_trainset, X_testset, y_trainset, y_testset = train_test_split(X, y, test_size=0.3)
+print(np.shape(X_trainset))
+print(np.shape(y_trainset))
+
+print(np.shape(X_testset))
+print(np.shape(y_testset))
 
 descTree = DecisionTreeClassifier(criterion="entropy",max_depth=None)
 descTree
@@ -99,6 +111,10 @@ descTree
 descTree.fit(X_trainset,y_trainset)
 predTree = descTree.predict(X_testset)
 
+print (predTree [0:5])
+print (y_testset [0:5])
+
+print("DecisionTrees's Accuracy: ", metrics.accuracy_score(y_testset, predTree))
 
 dot_data = StringIO()
 export_graphviz(descTree, out_file=dot_data,  
@@ -118,6 +134,7 @@ X_trainset, X_testset, y_trainset, y_testset = train_test_split(X, y, test_size=
 descTree = DecisionTreeClassifier(criterion="entropy",max_depth=None) # Define Model
 descTree.fit(X_trainset,y_trainset) # train the model using training set
 predTree = descTree.predict(X_testset)  # test the model using testing set
+print("DecisionTrees's Accuracy: ", metrics.accuracy_score(y_testset, predTree))
 
 # Visualization
 dot_data = StringIO()
