@@ -1,4 +1,4 @@
-def reportP(pid , du):
+def reportP(pid,dates):
     import datetime
     import pandas as pd
     import numpy as np
@@ -11,9 +11,9 @@ def reportP(pid , du):
     from datetime import date, timedelta
     import urllib.request, json 
     import time
+    import os
     from matplotlib import pyplot as plt
     import matplotlib.dates as mdates
-    import os
     import csv
     from IPython.display import display
     from Model import trainData
@@ -54,7 +54,6 @@ def reportP(pid , du):
     from firebase_admin import storage
 
 
-    duration = du
     userID = pid
 
 
@@ -66,17 +65,7 @@ def reportP(pid , du):
     bucket = storage.bucket(app=app)
 
 
-    # ## Get data from storage and get list of dates 
 
-    # In[14]:
-
-
-    dates =[]
-    for x in range(0 ,duration):
-        today=date.today() 
-        #yesterday = today - datetime.timedelta(days=1)
-        start_date = (today-timedelta(days=duration-x)).isoformat()
-        dates.append(start_date)
 
 
     # In[15]:
