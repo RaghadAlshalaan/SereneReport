@@ -1,19 +1,4 @@
-#REST API:
-from flask import Flask
-from flask import jsonify
-daily_report = Flask(__name__)#referance the file
-
-@daily_report.route("/daily_report/<string:pid>")
-
-def hello(pid):  
-    
-    
-    #!/usr/bin/env python
-    # coding: utf-8
-
-    # In[34]:
-
-
+def reportD(pid): 
     from datetime import datetime, timedelta
     import pandas as pd
     import numpy as np
@@ -65,6 +50,7 @@ def hello(pid):
     else:
             app = firebase_admin.get_app()
     db = firestore.client()
+
 
 
     # In[36]:
@@ -409,8 +395,7 @@ def hello(pid):
     freqs = {
         'Daily': 'YAAAY'
     }
-    return jsonify(freqs)
-if __name__ == "__main__":
-    daily_report.run(debug=True)
+    return freqs
+
 
 
