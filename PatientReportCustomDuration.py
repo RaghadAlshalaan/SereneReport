@@ -1293,7 +1293,5 @@ def reportPC(pid , start , end):
         'Result': "ksu"
     }
     return freqs
-if __name__ == "__main__":
-    app.run(debug=True)
 
 

@@ -1,13 +1,4 @@
-#REST API:
-from flask import Flask
-from flask import jsonify
-app = Flask(__name__)#referance the file
-
-@app.route("/patient_report/<string:pid>/<int:du>")
-
-def hello(pid , du):    
-    
-   
+def reportP(pid , du):
     import datetime
     import pandas as pd
     import numpy as np
@@ -60,9 +51,7 @@ def hello(pid , du):
     else:
             app = firebase_admin.get_app()
     db = firestore.client()
-
-
-    # In[12]:
+    from firebase_admin import storage
 
 
     duration = du
@@ -992,7 +981,7 @@ def hello(pid , du):
     if(sleepRecomendation == True):
         t = pdf.beginText(100,280)
         text = ["It is recommended to sleep at least 7-9 hours per day to get lower chance of anxiety." ,
-               "Getting a good night’s sleep can improve your mental well-being and help you to better",
+               "Getting a good nights sleep can improve your mental well-being and help you to better",
                 "manage your anxiety."]
         for line in text:
             t.textLine(line)
@@ -1000,7 +989,7 @@ def hello(pid , du):
     else:
         t = pdf.beginText(100,280)
         text = ["Good News! It seems you're getting enough sleep!",
-                "Getting a good night’s sleep can improve your mental well-being and help you to better",
+                "Getting a good nights sleep can improve your mental well being and help you to better",
                 "manage your anxiety."]
         for line in text:
             t.textLine(line)
@@ -1299,8 +1288,7 @@ def hello(pid , du):
         'Message': 'Some msg',
         'Result': "ksu"
     }
-    return jsonify(freqs)
-if __name__ == "__main__":
-    app.run(debug=True)
+    return freqs
+
 
 
