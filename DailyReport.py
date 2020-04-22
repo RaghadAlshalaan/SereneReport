@@ -271,6 +271,8 @@ def reportD(pid):
     totalAnxiety = 0
     rowCount = 1
     for x in range(0 ,len(dates)):
+        totalAnxiety = 0
+        rowCount = 1
         for row in Labeled_df.itertuples():
             if (row.date == dates[x]):
                 rowCount += 1
@@ -359,18 +361,21 @@ def reportD(pid):
 
 
     # get yesterday improvement 
-    yesterday = today - timedelta(days=1)
+    today = datetime.datetime.now()
+    yesterday = today - datetime.timedelta(days=1)
     timestamp = yesterday.strftime("%Y-%m-%d")
-    today_al = plot_df[plot_df.date == timestamp].Anxiety
+    today_al = float("{:.1f}".format(math.ceil(plot_df[plot_df.date == timestamp].Anxiety)))
+
+
 
     # get before yesterday to calculate the improvement
     try:
         doc_ref = db.collection(u'DailyReport').document('daily'+"userID")
         doc = doc_ref.get().to_dict()
-        prev = float(doc['anxiety_level'])
+        prev = float("{:.1f}".format(math.ceil(doc['anxiety_level'])))
         # calculate the improvement
         #1. get today Al
-        improvement= ((prev- float(today_al))/3)*100   
+        improvement= ((prev- float("{:.1f}".format(math.ceil(today_al))))/3)*100  
         doc_rec = db.collection(u'DailyReport').document('daily'+userID)
         doc_rec.set({
 

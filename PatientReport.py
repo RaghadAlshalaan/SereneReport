@@ -71,59 +71,80 @@ def reportP(pid,dates):
     # In[15]:
 
 
-    df= pd.DataFrame()
     notAvailableDates = []
-    # loop through the storage and get the data
-    sleep =[]
-    for x in range(0 ,len(dates)):
-        #Sleep
-        blob = bucket.blob(userID+"/fitbitData/"+dates[x]+"/"+dates[x]+"-sleep.json")
-        # download the file 
-        u = blob.generate_signed_url(datetime.timedelta(seconds=300), method='GET')
-        try:
-            with urllib.request.urlopen(u) as url:
-                data = json.loads(url.read().decode())
-                sleepMinutes = data['summary']["totalMinutesAsleep"]
-        except:
-            notAvailableDates.append(dates[x])
-            pass
+    
+     # get Sleep 
+    blob = bucket.blob(userID+"/lastGeneratedPatientReport/sleep.json")
+    u = blob.generate_signed_url(datetime.timedelta(seconds=300), method='GET')
+    with urllib.request.urlopen(u) as url:
+        data = json.loads(url.read().decode())
+        sleepMinutes = data['sleep']
+    sleepFile = pd.DataFrame(sleepMinutes)
+    
+    # analyse some data in sleep 
+    if(len(sleepFile) > 0):
+        Testdate = ''
+        sleepMin = 0
+        sleep_df = pd.DataFrame()
+        sleepDate = []
+        sleepMinArray = []
+        for row in sleepFile.itertuples():
+            if row.dateOfSleep == Testdate:
+                sleepMin = row.minutesAsleep + sleepMin
+                sleepDate = sleepDate[:-1]
+                sleepMinArray = sleepMinArray[:-1]
+            else:
+                Testdate = row.dateOfSleep
+                sleepMin = row.minutesAsleep
+            sleepDate.append(Testdate)
+            sleepMinArray.append(sleepMin)
+        sleep_df ['date'] = sleepDate
+        sleep_df ['sleepMin'] = sleepMinArray
+        
+     # get Steps 
+    blob = bucket.blob(userID+"/lastGeneratedPatientReport/steps.json") 
+    u = blob.generate_signed_url(datetime.timedelta(seconds=300), method='GET')
+    with urllib.request.urlopen(u) as url:
+        data = json.loads(url.read().decode())
+        steps = data['activities-steps']
+    stepsFile = pd.DataFrame(steps)
+    stepsFile = stepsFile.rename(columns={'value': 'TotalSteps'})
 
-        #Activity (Steps)
-        blob = bucket.blob(userID+"/fitbitData/"+dates[x]+"/"+dates[x]+"-activity.json")
-        # download the file 
-        u = blob.generate_signed_url(datetime.timedelta(seconds=300), method='GET')
-        try:
-            with urllib.request.urlopen(u) as url:
-                data = json.loads(url.read().decode())
-                steps = data['summary']["steps"]
-        except:
-            notAvailableDates.append(dates[x])
-            pass
-
-        #heartrate
+    hr_df = pd.DataFrame()
+    for x in range (0, len(dates)):
         blob = bucket.blob(userID+"/fitbitData/"+dates[x]+"/"+dates[x]+"-heartrate.json")
         u = blob.generate_signed_url(datetime.timedelta(seconds=300), method='GET')
+    
         try:
             with urllib.request.urlopen(u) as url:
                 data = json.loads(url.read().decode())
                 df_heartrate = pd.DataFrame(data['activities-heart-intraday']['dataset'])
-
+    
             df_heartrate.time.apply(str)
             df_heartrate['time'] = pd.to_datetime(df_heartrate['time'])
             df_heartrate['hour'] = df_heartrate['time'].apply(lambda time: time.strftime('%H'))
             df_heartrate.drop(['time'],axis=1, inplace = True)
             heart_rate = df_heartrate.groupby(["hour"], as_index=False).max()
-            heart_rate['sleepMin'] = sleepMinutes
-            heart_rate['TotalSteps'] = steps
+            #heart_rate['sleepMin'] = sleep_df [sleep_df.date == dates[x]].sleepMin
+            #heart_rate['TotalSteps'] = stepsFile [stepsFile.dateTime == dates[x]].value
             heart_rate['date'] = dates[x]
             heart_rate = heart_rate.astype({"hour": int})  
         except:
             notAvailableDates.append(dates[x])
             pass
+        hr_df = hr_df.append(heart_rate, ignore_index = True)
 
-        # append dataframe
-        df = df.append(heart_rate, ignore_index = True)
+        merged = pd.merge(left=hr_df, 
+                  right = sleep_df,
+                  how = 'left',
+                  left_on=['date'],
+                  right_on=['date']).ffill()
 
+        df = pd.merge(left=merged, 
+                  right = stepsFile,
+                  how = 'left',
+                  left_on=['date'],
+                  right_on=['dateTime']).ffill()
 
     # In[17]:
 
@@ -365,6 +386,8 @@ def reportP(pid,dates):
     totalAnxiety = 0
     rowCount = 1
     for x in range(0 ,len(dates)):
+        totalAnxiety = 0
+        rowCount = 1
         for row in Labeled_df.itertuples():
             if (row.date == dates[x]):
                 rowCount += 1
@@ -379,7 +402,7 @@ def reportP(pid,dates):
     # In[38]:
 
 
-    #divide dataframe into 15 rows (2 weeks)
+    #divide dataframe into 15 rows (2 weeks) ) max is 3 months
 
     df1 = pd.DataFrame()
     df2 = pd.DataFrame()
@@ -387,12 +410,7 @@ def reportP(pid,dates):
     df4 = pd.DataFrame()
     df5 = pd.DataFrame()
     df6 = pd.DataFrame()
-    df7 = pd.DataFrame()
-    df8 = pd.DataFrame()
-    df9 = pd.DataFrame()
-    df10 = pd.DataFrame()
-    df11 = pd.DataFrame()
-    df12 = pd.DataFrame()
+    
     dfarray = []
     count = 0
     if(len(plot_df) > 15):
@@ -416,31 +434,7 @@ def reportP(pid,dates):
                         count = (df5.last_valid_index() - (len(df5) - 15))
                         df6 = df5[count:]
                         dfarray.append(df6)
-                        if(len(df6)>15):
-                            count = (df6.last_valid_index() - (len(df6) - 15))
-                            df7 = df6[count:]
-                            dfarray.append(df7)
-                            if(len(df7)>15):
-                                count = (df7.last_valid_index() - (len(df7) - 15))
-                                df8 = df7[count:]
-                                dfarray.append(df8)
-                                if(len(df8)>15):
-                                    count = (df8.last_valid_index() - (len(df8) - 15))
-                                    df9 = df8[count:]
-                                    dfarray.append(df9)
-                                    if(len(df9)>15):
-                                        count = (df9.last_valid_index() - (len(df9) - 15))
-                                        df10 = df9[count:]
-                                        dfarray.append(df10)
-                                        if(len(df10)>15):
-                                            count = (df10.last_valid_index() - (len(df10) - 15))
-                                            df11 = df10[count:]
-                                            dfarray.append(df11)
-                                            if(len(df11)>15):
-                                                count = (df11.last_valid_index() - (len(df11) - 15))
-                                                df12 = df11[count:]
-                                                dfarray.append(df12)
-
+                       
 
 
     # In[39]:
@@ -614,122 +608,61 @@ def reportP(pid,dates):
     # In[41]:
 
 
-    df1 = pd.DataFrame()
-    df2 = pd.DataFrame()
-
-    dfarray = []
-    count = 0
-    if(len(plot_df) > 90):
-        df1 = plot_df[:90]
-        df2 = plot_df[90:]
-        dfarray.append(df1)
-        dfarray.append(df2)
 
 
-    # In[42]:
+
+    
 
 
     # Plot AL
-    if (len(dfarray)<90):
-        fig, ax = plt.subplots()
-        c1 = '#9dd6f5'
-        c2 = '#4ba0d1'
-        c3 = '#23495f'
-        for t, y in zip(plot_df["date"], plot_df["Anxiety"]):
+    
+    fig, ax = plt.subplots()
+    c1 = '#9dd6f5'
+    c2 = '#4ba0d1'
+    c3 = '#23495f'
+    for t, y in zip(plot_df["date"], plot_df["Anxiety"]):
 
-            c=""
-            if(y <= 1):
-                c = c1      
-            elif (1 < y <= 2):
-                c = c2       
-            elif ( y > 2): 
-                c = c3          
-            ax.plot([t,t], [0,y], color=c, marker="o",markevery=(1,2),linewidth=4,markeredgewidth=4)
+        c=""
+        if(y <= 1):
+            c = c1      
+        elif (1 < y <= 2):
+            c = c2       
+        elif ( y > 2): 
+            c = c3          
+        ax.plot([t,t], [0,y], color=c, marker="o",markevery=(1,2),linewidth=4,markeredgewidth=4)
 
-        colors = [[c1,c1],[c2,c2],[c3,c3]]          
-        categories = ['Low','Meduim','High']
+    colors = [[c1,c1],[c2,c2],[c3,c3]]          
+    categories = ['Low','Meduim','High']
 
-        #create dict
-        legend_dict=dict(zip(categories,colors))
-        #create patches
-        patchList = []
-        for key in legend_dict:
-                data_key = mpatches.Patch(facecolor=legend_dict[key][0], 
-                                      edgecolor=legend_dict[key][1], label=key)
-                patchList.append(data_key)
+    #create dict
+    legend_dict=dict(zip(categories,colors))
+    #create patches
+    patchList = []
+    for key in legend_dict:
+        data_key = mpatches.Patch(facecolor=legend_dict[key][0], 
+                             edgecolor=legend_dict[key][1], label=key)
+        patchList.append(data_key)
 
-        ax.legend(handles=patchList,ncol=len(categories), fontsize=12)   
-
-
-        plt.tick_params(axis='x', rotation=70)
-
-        # Start the graph at 0
-
-        ax.set_ylim(0, 3)
-
-        fig.set_size_inches(15.5, 10)
-        plt.tight_layout()
+    ax.legend(handles=patchList,ncol=len(categories), fontsize=12)   
 
 
-        plt.xlabel('Date')
+    plt.tick_params(axis='x', rotation=70)
 
-        ax.yaxis.set_label_coords(-0.02, 0.48)
+    # Start the graph at 0
 
-        fig.savefig('ALpdf.png', dpi = None)
+    ax.set_ylim(0, 3)
 
-    else:    
-        for x in range(0,len(dfarray)):
-            fig, ax = plt.subplots()
-            c1 = '#9dd6f5'
-            c2 = '#4ba0d1'
-            c3 = '#23495f'
-            for t, y in zip(dfarray[x]["date"], dfarray[x]["Anxiety"]):
-
-                c=""
-                if(y <= 1):
-                    c = c1      
-                elif (1 < y <= 2):
-                    c = c2       
-                elif ( y > 2): 
-                    c = c3          
-                ax.plot([t,t], [0,y], color=c, marker="o",markevery=(1,2),linewidth=4,markeredgewidth=4)
-
-            colors = [[c1,c1],[c2,c2],[c3,c3]]          
-            categories = ['Low','Meduim','High']
-
-            #create dict
-            legend_dict=dict(zip(categories,colors))
-            #create patches
-            patchList = []
-            for key in legend_dict:
-                    data_key = mpatches.Patch(facecolor=legend_dict[key][0], 
-                                      edgecolor=legend_dict[key][1], label=key)
-                    patchList.append(data_key)
-
-            ax.legend(handles=patchList,ncol=len(categories), fontsize=12)   
+    fig.set_size_inches(15.5, 10)
+    plt.tight_layout()
 
 
-            plt.tick_params(axis='x', rotation=70)
+    plt.xlabel('Date')
 
-        # Start the graph at 0
+    ax.yaxis.set_label_coords(-0.02, 0.48)
 
-            ax.set_ylim(0, 3)
+    fig.savefig('ALpdf.png', dpi = None)
 
-            fig.set_size_inches(15.5, 10)
-            plt.tight_layout()
-
-
-            plt.xlabel('Date')
-
-            ax.yaxis.set_label_coords(-0.02, 0.48)
-
-
-
-            fig.savefig('AL'+str(x)+'pdf.png', dpi = None)
-
-
-
-
+   
 
     # # Location Analysis
 
@@ -803,7 +736,8 @@ def reportP(pid,dates):
     # In[51]:
 
 
-    analysis = pd.DataFrame()
+    analysis_EN = pd.DataFrame()
+    analysis_AR = pd.DataFrame()
     count = 0
     i = 0
     label = ""
@@ -823,30 +757,36 @@ def reportP(pid,dates):
                     label = row.anxietyLevel
                     locationName = row.name
                     near = row.nearestLoc    
-
-
+                
+        
         i+=1           
         counts.append(count)
         labels.append(label)
         locationNames.append(locationName)
         nearLocs.append(near)
+    
+    analysis_EN ['Location'] = locationNames
+    analysis_EN ['Frequency'] = counts
+    analysis_EN ['Anxiety Level'] = labels
+    analysis_EN ['Nearest Location'] = nearLocs
 
-    analysis ['Location'] = locationNames
-    analysis ['Frequency'] = counts
-    analysis ['Anxiety Level'] = labels
-    analysis ['Nearest Location'] = nearLocs
+    analysis_AR ['الموقع'] = locationNames
+    analysis_AR ['التكرار'] = counts
+    analysis_AR ['مستوى القلق'] = labels
+    analysis_AR ['أقرب موقع'] = nearLocs
 
 
     # In[53]:
 
 
-    newA = analysis.drop(analysis[analysis['Frequency'] == 0].index, inplace= True)
-
+    newEn = analysis.drop(analysis[analysis['Frequency'] == 0].index, inplace= True)
+    newAr = analysis_AR.drop(analysis_AR[analysis_AR['التكرار'] == 0].index, inplace= True)
 
     # In[54]:
 
 
-    analysis ['Anxiety Level'] = 'High'
+    analysis_EN ['Anxiety Level'] = 'High'
+    analysis_AR  ['مستوى القلق'] = 'مرتفع'
 
 
     # In[55]:
@@ -859,12 +799,14 @@ def reportP(pid,dates):
 
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
+    from googletrans import Translator
+
 
 
     # In[56]:
 
 
-    def render_mpl_table(data, col_width=5.0, row_height=0.625, font_size=14,
+    def render_mpl_table(data, col_width=5.0, row_height=0.625, font_size=14,tran = '',
                          header_color='#23495f', row_colors=['#e1eff7', 'w'], edge_color='#23495f',
                          bbox=[0, 0, 1, 1], header_columns=0,
                         ax=None, **kwargs):
@@ -893,27 +835,131 @@ def reportP(pid,dates):
 
 
 
-        fig.savefig('Location.png', dpi = 100)
+        fig.savefig(tran+'.png', dpi = 100)
         return ax
 
 
     # In[57]:
 
 
-    if(len(analysis) > 0):
-        for ind,row in analysis.iterrows():
-            analysis.loc[ind,'Nearest Location']=get_display(arabic_reshaper.reshape(analysis.loc[ind,'Nearest Location']))
+    if(len(analysis_EN) > 0):
+        for ind,row in analysis_EN.iterrows():
+               analysis_EN.loc[ind,'Nearest  Location']=get_display(arabic_reshaper.reshape(analysis_EN.loc[ind,'Nearest Location']))
+    if(len(analysis_AR) > 0):
+        for ind,row in analysis_AR.iterrows():
+            analysis_AR.loc[ind,'أقرب موقع']=get_display(arabic_reshaper.reshape(analysis_AR.loc[ind,'أقرب موقع']))
+            analysis_AR.loc[ind,'مستوى القلق']=get_display(arabic_reshaper.reshape(analysis_AR.loc[ind,'مستوى القلق']))
+        analysis_AR = analysis_AR.rename(columns={'الموقع': get_display(arabic_reshaper.reshape('الموقع')) })
+        analysis_AR = analysis_AR.rename(columns={'التكرار': get_display(arabic_reshaper.reshape('التكرار')) })
+        analysis_AR = analysis_AR.rename(columns={'مستوى القلق': get_display(arabic_reshaper.reshape('مستوى القلق')) })
+        analysis_AR = analysis_AR.rename(columns={'أقرب موقع': get_display(arabic_reshaper.reshape('أقرب موقع')) }) 
+                           
 
 
     # In[58]:
 
 
-    if(len(analysis) > 0):
-        render_mpl_table(analysis, header_columns=0, col_width=5)
+    if(len(analysis_EN) > 0):
+        render_mpl_table(analysis_EN, header_columns=0, col_width=5, tran ='Location-EN')
+    if(len(analysis_AR) > 0):
+        render_mpl_table(analysis_AR, header_columns=0, col_width=5, tran ='Location-AR')
 
 
-    # # Events with highest level of anxiety
+    # # Events with highest level of anxiety Note array will be changed soon
+   
+    from dateutil.parser import parse
+    events = pd.DataFrame()
+    testEvents = ['2020-04-21 01:10:02.692263 Test','2020-04-21 11:10:02.692263 Home Work',
+              '2020-04-21 12:10:02.692263 Final' ]
+    date_result = ''
+    name_result = ''
+    Final_names = []
+    Final_dates = []
+    for x in range(0,len(testEvents)):
+        result = parse(testEvents[x], fuzzy_with_tokens=True)
+        date_result = result[0]
+        name_result = result[1]
+        Final_dates.append(date_result)
+        Final_names.append(name_result)
+    
 
+    events ['time'] = Final_dates
+    events ['eventName'] = Final_names
+
+    events.time.apply(str)
+    events['time'] = pd.to_datetime(events['time'])
+    events['date'] = pd.to_datetime(events['time'], format='%Y:%M:%D').dt.date
+    events['hour'] = events['time'].apply(lambda time: time.strftime('%H'))
+    events.drop(['time'], axis=1, inplace = True)
+    events.hour = events.hour.astype(int) 
+    events.date = events.date.astype(str)
+
+    Test = Labeled_df
+    
+    merge_df = pd.merge(left=Test, 
+                  right = events,
+                  how = 'left',
+                  left_on=['hour','date'],
+                  right_on=['hour','date']).ffill()
+    merge_df['eventName'].fillna("Not given", inplace=True)
+    merge_df= merge_df[merge_df.eventName != 'Not given']
+    
+    
+    finalEvents_EN = pd.DataFrame()
+    finalEvents_AR = pd.DataFrame()
+    ev_name=''
+    evNames = []
+    evLabels = []
+    evDate = []
+    for row in merge_df.itertuples():
+        if row.eventName != ev_name:
+            if row.Label == 'High':
+                ev_name = row.eventName
+                ev_label = row.Label
+                ev_date = row.date
+        if(ev_name != ''):
+            evNames.append(ev_name)
+            evLabels.append(ev_label)
+            evDate.append(ev_date)
+    
+    finalEvents_EN ['Event Name'] = evNames
+    finalEvents_EN['Anxiety Level'] = evLabels
+    finalEvents_EN['Date'] = evDate
+
+    finalEvents_AR ['اسم الحدث'] = evNames
+    finalEvents_AR['مستوى القلق'] = evLabels
+    finalEvents_AR['تاريخ الحدث'] = evDate
+
+    
+    finalEvents_EN = finalEvents_EN.drop_duplicates()
+    finalEvents_AR = finalEvents_AR.drop_duplicates()
+    
+    if(len(finalEvents_EN) > 0):
+        for ind,row in finalEvents_EN.iterrows():
+            try:
+                finalEvents_EN.loc[ind,'Event Name']=get_display(arabic_reshaper.reshape(
+                finalEvents_EN.loc[ind,'Event Name']))
+            except:
+                pass
+
+    if(len(finalEvents_AR) > 0):
+        finalEvents_AR['مستوى القلق'] = 'مرتفع'
+        for ind,row in finalEvents_AR.iterrows():
+            try:
+                finalEvents_AR.loc[ind,'اسم الحدث']=get_display(arabic_reshaper.reshape(finalEvents_AR.loc[ind,'اسم الحدث']))
+                finalEvents_AR.loc[ind,'مستوى القلق']=get_display(arabic_reshaper.reshape(finalEvents_AR.loc[ind,'مستوى القلق']))
+            except:
+                pass
+        finalEvents_AR = finalEvents_AR.rename(columns={'اسم الحدث': get_display(arabic_reshaper.reshape('اسم الحدث')) })
+        finalEvents_AR = finalEvents_AR.rename(columns={'مستوى القلق': get_display(arabic_reshaper.reshape('مستوى القلق')) })
+        finalEvents_AR = finalEvents_AR.rename(columns={'تاريخ الحدث': get_display(arabic_reshaper.reshape('تاريخ الحدث')) })
+
+             
+            
+    if(len(finalEvents_EN) > 0):
+        render_mpl_table(finalEvents_EN, header_columns=0, col_width=4, tran ='Events-EN')
+    if(len(finalEvents_AR) > 0):
+        render_mpl_table(finalEvents_AR, header_columns=0, col_width=4, tran ='Events-AR')
     # # Genertate patient report and save it in storage
 
     # In[59]:
@@ -938,24 +984,56 @@ def reportP(pid,dates):
 
     pdf.drawImage("serene .png", 150, 730, width=300,height=130, mask= 'auto')
 
-
     pdf.setFillColor(colors.HexColor('#e1eff7'))
-    pdf.roundRect(57,400, 485,200,4,fill=1, stroke= 0)
+    pdf.roundRect(57,620, 485,50,4,fill=1, stroke= 0)
+
+
+
 
     pdf.setFont("Helvetica-Bold", 16)
     pdf.setFillColor(colors.HexColor('#23495f'))
 
-    pdf.drawString(115,570, "Report Duration From: " + dates[0] +" To: "+ dates[len(dates)-1])
+    pdf.drawString(115,638, "Report Duration From: " + dates[0] +" To: "+ dates[len(dates)-1])
+
+    pdf.setFillColor(colors.HexColor('#e1eff7'))
+    pdf.roundRect(57,400, 485,200,4,fill=1, stroke= 0)
+
+    pdf.setFont("Helvetica-Bold", 20)
+    pdf.setFillColor(colors.HexColor('#23495f'))
+    
+    pdf.drawString(100,570, "Patient Information")
 
     pdf.setFont("Helvetica-Bold", 15)
-    pdf.drawString(250,540, "Improvements: ")
+    pdf.drawString(150,540, "Name: " )
+    pdf.drawString(150,520, "Age: " )
+    pdf.drawString(150,500, "Employment Status: " )
+    pdf.drawString(150,480, "Martial Status: " )
+    pdf.drawString(150,460, "Monthly Income: " )
+    pdf.drawString(150,440, "Chronic Diseases: " )
+    pdf.drawString(150,420, "Cigarette Smoker: " ) 
 
+    pdf.setFont("Helvetica", 15)
+    pdf.setFillColor(black)
+    pdf.drawString(210,540,  name)
+    pdf.drawString(210,520,  age)
+    pdf.drawString(310,500,  emp)
+    pdf.drawString(260,480,  mar)
+    pdf.drawString(290,460,  income)
+    pdf.drawString(290,440, chronicD)
+    pdf.drawString(290,420,  smoke) 
 
+    pdf.setFillColor(colors.HexColor('#bfbfbf'))
+    pdf.roundRect(370,560, 125,30,4,fill=1, stroke= 0)
 
+    pdf.setFillColorRGB(1,1,1)
+    pdf.drawString(375,570, "GAD-7 Score = ")
 
+    pdf.setFont("Helvetica-Bold", 15)
+    pdf.drawString(480,570, gad)
 
     pdf.setFillColor(colors.HexColor('#e1eff7'))
     pdf.roundRect(57,160, 485,200,4,fill=1, stroke= 0)
+
 
     pdf.setFont("Helvetica-Bold", 16)
     pdf.setFillColor(colors.HexColor('#23495f'))
@@ -970,7 +1048,7 @@ def reportP(pid,dates):
     if(sleepRecomendation == True):
         t = pdf.beginText(100,280)
         text = ["It is recommended to sleep at least 7-9 hours per day to get lower chance of anxiety." ,
-               "Getting a good nights sleep can improve your mental well-being and help you to better",
+               "Getting a good night’s sleep can improve your mental well-being and help you to better",
                 "manage your anxiety."]
         for line in text:
             t.textLine(line)
@@ -978,7 +1056,7 @@ def reportP(pid,dates):
     else:
         t = pdf.beginText(100,280)
         text = ["Good News! It seems you're getting enough sleep!",
-                "Getting a good nights sleep can improve your mental well being and help you to better",
+                "Getting a good night’s sleep can improve your mental well-being and help you to better",
                 "manage your anxiety."]
         for line in text:
             t.textLine(line)
@@ -991,7 +1069,7 @@ def reportP(pid,dates):
         for line in text:
             t.textLine(line)
         pdf.drawText(t)
-
+                            
     else:
         t = pdf.beginText(100,200)
         text = ["Great Work! You're considered an active person based on your average steps per day.",
@@ -999,8 +1077,12 @@ def reportP(pid,dates):
         for line in text:
             t.textLine(line)
         pdf.drawText(t)
+    
 
     pdf.showPage()
+
+
+
 
 
     pdf.drawImage("serene .png", 150, 730, width=300,height=130, mask= 'auto')
@@ -1011,68 +1093,57 @@ def reportP(pid,dates):
 
     pdf.drawString(100,650, "Anxiety Level")
 
-    if(len(plot_df)<=90):
-        pdf.drawImage("ALpdf.png", 57, 400, width=485,height=200)
-        pdf.drawString(100,350, "Location Analysis")
-        if(len(analysis) > 0):
-            pdf.drawImage("Location.png", 57, 100, width=485,height=200)
-        else:
-            pdf.setFont("Helvetica", 15)
-            pdf.setFillColor(colors.HexColor('#23495f'))
+    pdf.drawImage("ALpdf.png", 57, 400, width=485,height=200)
 
-            t = pdf.beginText(130,250)
-            text = [
-            name +" condition was stable through this period,", 
-            "no locations with high anxiety level were detected." ]
-            for line in text:
-                t.textLine(line)
-
-            pdf.drawText(t)
-
-        if(len(notSyncedDates) != 0):  
-            pdf.setFont("Helvetica", 12)
-            pdf.setFillColor(colors.HexColor('#d40027'))
-            pdf.drawString(75,95, "Note: Below dates are missing, because they were not synced correctly:")
-            i = 70
-            for row in notSyncedDates.itertuples():
-                pdf.drawString(85,i, '- '+ row.date)
-                i = i-20
-        pdf.showPage()
+    pdf.drawString(100,320, "Location Analysis")
+    if(len(analysis_EN) > 0):
+        pdf.drawImage("Location-EN.png", 30, 200,width=570,height=100)
     else:
-        j = 400
-        for x in range(0,len(dfarray)):
-            pdf.drawImage('AL'+str(x)+'pdf.png', 57, j, width=485,height=200)
-            j = j-300
-        pdf.showPage()
+        pdf.setFont("Helvetica", 15)
+        pdf.setFillColor(colors.HexColor('#23495f'))
 
-        pdf.drawImage("serene .png", 150, 730, width=300,height=130, mask= 'auto')
+        t = pdf.beginText(130,250)
+        text = [
+        name +" condition was stable through this period,", 
+        "no locations with high anxiety level were detected." ]
+        for line in text:
+            t.textLine(line)
 
-        pdf.setFont("Helvetica-Bold", 20)
-        pdf.setFillColor(colors.HexColor('#808080'))
-        pdf.drawString(100,650, "Location Analysis")
-        if(len(analysis) > 0):
-            pdf.drawImage("Location.png", 57, 400, width=485,height=200)
-        else:
-            pdf.setFont("Helvetica", 15)
-            pdf.setFillColor(colors.HexColor('#23495f'))
+        pdf.drawText(t)
 
-            t = pdf.beginText(130,550)
-            text = [
-            name +" condition was stable through this period,", 
-            "no locations with high anxiety level were detected." ]
-            for line in text:
-                t.textLine(line)
 
-            pdf.drawText(t)
+    pdf.showPage()
 
-        if(len(notSyncedDates) != 0):  
-            pdf.setFont("Helvetica", 12)
-            pdf.setFillColor(colors.HexColor('#d40027'))
-            pdf.drawString(75,100, "Note: Below dates are missing, because they were not synced correctly:")
-            i = 70
-            for row in notSyncedDates.itertuples():
-                pdf.drawString(85,i, '- '+ row.date)
-                i = i-20
+    pdf.drawImage("serene .png", 150, 730, width=300,height=130, mask= 'auto')
+
+    pdf.setFont("Helvetica-Bold", 20)
+    pdf.setFillColor(colors.HexColor('#808080'))
+    pdf.drawString(100,650, "Events Analysis")
+
+    if(len(finalEvents_EN)>0):
+        pdf.drawImage("Events-EN.png", 30, 500, width=550,height=100)
+    else:
+        pdf.setFont("Helvetica", 15)
+        pdf.setFillColor(colors.HexColor('#23495f'))
+
+        t = pdf.beginText(130,550)
+        text = [
+        name +" condition was stable through this period,", 
+        "no event with high anxiety level were detected." ]
+        for line in text:
+            t.textLine(line)
+
+        pdf.drawText(t)
+
+
+    if(len(notSyncedDates) != 0):  
+        pdf.setFont("Helvetica", 12)
+        pdf.setFillColor(colors.HexColor('#d40027'))
+        pdf.drawString(75,95, "Note: Below dates are missing, because they were not synced correctly:")
+        i = 70
+        for row in notSyncedDates.itertuples():
+            pdf.drawString(85,i, '- '+ row.date)
+            i = i-20
 
     pdf.save()
 
@@ -1088,6 +1159,11 @@ def reportP(pid,dates):
 
     # In[63]:
 
+    def from_en_to_ar(text):
+        translator = Translator()
+        result = translator.translate(text, dest='ar')
+        return result.text
+
 
     pdf = canvas.Canvas('Patient-AR.pdf')
     pdf.setTitle('تقرير المريض')
@@ -1095,10 +1171,18 @@ def reportP(pid,dates):
 
 
 
-
-    #pdf.setFont("Arabic", 15)
-
     pdf.drawImage("serene .png", 150, 730, width=300,height=130, mask= 'auto')
+
+    pdf.setFillColor(colors.HexColor('#e1eff7'))
+    pdf.roundRect(57,620, 485,50,4,fill=1, stroke= 0)
+
+    pdf.setFont("Arabic", 22)
+    pdf.setFillColor(colors.HexColor('#23495f'))
+
+    reportDuration = translate (u'مدة التقرير من')
+    to = translate (u'إلى')
+    pdf.drawString(125,638, dates[len(dates)-1] +' '+ to +' ' + dates[0] +' '+reportDuration)
+
 
 
     pdf.setFillColor(colors.HexColor('#e1eff7'))
@@ -1107,20 +1191,51 @@ def reportP(pid,dates):
     pdf.setFont("Arabic", 22)
     pdf.setFillColor(colors.HexColor('#23495f'))
 
-    reportDuration = translate (u'مدة التقرير من')
-    to = translate (u'إلى')
-    pdf.drawString(125,570, dates[len(dates)-1] +' '+ to +' ' + dates[0] +' '+reportDuration)
-
-    pdf.setFont("Arabic", 22)
-    improve = translate(u'التحسينات')
-    pdf.drawString(260,540, improve)
+    patient = translate (u'معلومات المريض')
+    pdf.drawString(400,570, patient)
 
 
+    na =  translate (u'الاسم:')
+    ag =  translate (u'العمر:')
+    Es =  translate (u'الحالة الوظيفية:')
+    Ms =  translate (u'الحالة الإجتماعية:')
+    Mi =  translate (u'الدخل الشهري:')
+    Cd =  translate (u'الأمراض المزمنة:')
+    Cs =  translate (u'مدخن:')
 
 
+    pdf.setFont("Arabic", 18)
+    pdf.drawString(445,540, na )
+    pdf.drawString(446,520, ag)
+    pdf.drawString(400,500, Es )
+    pdf.drawString(390,480, Ms)
+    pdf.drawString(400,460, Mi )
+    pdf.drawString(395,440, Cd)
+    pdf.drawString(445,420, Cs ) 
+
+    pdf.setFont("Arabic", 15)
+    pdf.setFillColor(black)
+    pdf.drawString(400,540,  name)
+    pdf.drawString(420,520,  age)
+    pdf.drawString(350,500,  translate(from_en_to_ar(emp)))
+    pdf.drawString(355,480,  translate(from_en_to_ar(mar)))
+    pdf.drawString(360,460,  income)
+    pdf.drawString(360,440,  translate(from_en_to_ar(chronicD)))
+    pdf.drawString(420,420,  translate(from_en_to_ar(smoke))) 
+
+    pdf.setFillColor(colors.HexColor('#bfbfbf'))
+    pdf.roundRect(100,560, 120,30,4,fill=1, stroke= 0)
+
+    ga = translate (u'مقياس GAD-7 =')
+    pdf.setFillColorRGB(1,1,1)
+    pdf.drawString(120,570, ga)
+
+    pdf.setFont("Helvetica-Bold", 15)
+    pdf.drawString(105,570, gad)
 
     pdf.setFillColor(colors.HexColor('#e1eff7'))
     pdf.roundRect(57,160, 485,200,4,fill=1, stroke= 0)
+
 
     pdf.setFont("Arabic", 22)
     pdf.setFillColor(colors.HexColor('#23495f'))
@@ -1171,75 +1286,64 @@ def reportP(pid,dates):
     pdf.showPage()
 
 
+
+
+
     pdf.drawImage("serene .png", 150, 730, width=300,height=130, mask= 'auto')
 
 
-    pdf.setFont("Arabic", 32)
+    pdf.setFont("Arabic", 28)
     pdf.setFillColor(colors.HexColor('#808080'))
 
     AL = translate(u'مستوى القلق')
 
     pdf.drawString(400,650, AL)
 
-    loc = translate (u'تحليل الموقع')
-    if(len(plot_df)<=90):
-        pdf.drawImage("ALpdf.png", 57, 400, width=485,height=200)
-        pdf.drawString(400,350, loc)
-        if(len(analysis) > 0):
-            pdf.drawImage("Location.png", 57, 100, width=485,height=200)
-        else:
-            pdf.setFont("Arabic", 18)
-            pdf.setFillColor(colors.HexColor('#23495f'))
+    loc = translate (u'تحليل المواقع')
 
-            text = translate (u'كانت الحالة مستقرة خلال هذه الفترة, لم يتم الكشف عن أي مواقع ذات مستوى قلق مرتفع.')
-            pdf.drawString(60,250, text)
-
-
-        if(len(notSyncedDates) != 0):  
-            pdf.setFont("Arabic", 15)
-            pdf.setFillColor(colors.HexColor('#d40027'))
-            note = translate (u'ملاحظة: التواريخ المذكورة أدناه غير متضمنة في التحليل لعدم مزامنة البيانات.')
-            pdf.drawString(200,95, note)
-            i = 70
-            for row in notSyncedDates.itertuples():
-                pdf.setFont("Helvetica", 12)
-                pdf.drawString(450,i,  row.date +' -')
-                i = i-20
-        pdf.showPage()
+    pdf.drawImage("ALpdf.png", 57, 400, width=485,height=200)
+    pdf.drawString(390,320, loc)
+    if(len(analysis_AR) > 0):
+        pdf.drawImage("Location-AR.png", 10, 200, width=570,height=100)
     else:
-        j = 400
-        for x in range(0,len(dfarray)):
-            pdf.drawImage('AL'+str(x)+'pdf.png', 57, j, width=485,height=200)
-            j = j-300
-        pdf.showPage()
+        pdf.setFont("Arabic", 18)
+        pdf.setFillColor(colors.HexColor('#23495f'))
 
-        pdf.drawImage("serene .png", 150, 730, width=300,height=130, mask= 'auto')
-
-        pdf.setFont("Arabic", 32)
-        pdf.setFillColor(colors.HexColor('#808080'))
-        loc = translate (u'تحليل الموقع')
-        pdf.drawString(400,650, loc)
-        if(len(analysis) > 0):
-            pdf.drawImage("Location.png", 57, 400, width=485,height=200)
-        else:
-            pdf.setFont("Arabic", 18)
-            pdf.setFillColor(colors.HexColor('#23495f'))
-
-            t = pdf.beginText(130,550)
-            text = translate (u'.كانت الحالة مستقرة خلال هذه الفترة, لم يتم الكشف عن أي مواقع ذات مستوى قلق مرتفع')
-            pdf.drawString(60,550, text)
+        text = translate (u'كانت الحالة مستقرة خلال هذه الفترة, لم يتم الكشف عن أي مواقع ذات مستوى قلق مرتفع.')
+        pdf.drawString(60,250, text)
 
 
-        if(len(notSyncedDates) != 0):  
-            pdf.setFont("Arabic", 15)
-            pdf.setFillColor(colors.HexColor('#d40027'))
-            note = translate (u'.ملاحظة: التواريخ المذكورة أدناه غير متضمنة في التحليل لعدم مزامنة البيانات')
-            pdf.drawString(200,100, note)
-            i = 70
-            for row in notSyncedDates.itertuples():
-                pdf.setFont("Helvetica", 12)
-                pdf.drawString(450,i,  row.date + ' -')
-                i = i-20
+    pdf.showPage()
+
+
+    pdf.drawImage("serene .png", 150, 730, width=300,height=130, mask= 'auto')
+
+    pdf.setFont("Arabic", 28)
+    pdf.setFillColor(colors.HexColor('#808080'))
+    EV = translate(u'تحليل الأحداث')
+    pdf.drawString(380,650, EV)
+
+
+    if(len(finalEvents_AR)>0):
+        pdf.drawImage("Events-AR.png", 20, 500, width=550,height=100)
+    else:
+        pdf.setFont("Arabic", 18)
+        pdf.setFillColor(colors.HexColor('#23495f'))
+
+        text = translate (u'كانت الحالة مستقرة خلال هذه الفترة, لم يتم الكشف عن أي أحداث ذات مستوى قلق مرتفع.')
+        pdf.drawString(60,550, text)
+
+
+    if(len(notSyncedDates) != 0):  
+        pdf.setFont("Arabic", 15)
+        pdf.setFillColor(colors.HexColor('#d40027'))
+        note = translate (u'.ملاحظة: التواريخ المذكورة أدناه غير متضمنة في التحليل لعدم مزامنة البيانات')
+        pdf.drawString(200,95, note)
+        i = 70
+        for row in notSyncedDates.itertuples():
+            pdf.setFont("Helvetica", 12)
+            pdf.drawString(450,i,  row.date + ' -')
+            i = i-20
 
     pdf.save()
 
@@ -1264,7 +1368,13 @@ def reportP(pid,dates):
         for x in range(0,len(dfarray)):
             os.remove('AL'+str(x)+'pdf.png')
 
-
+    if(len(finalEvents_AR) > 0 ):
+        os.remove('Events-AR.png')
+        os.remove('Events-EN.png')
+    if(len(analysis_AR)>0):
+        os.remove('Location-AR.png')
+        os.remove('Location-EN.png')
+    
     # In[ ]:
 
 

@@ -464,6 +464,8 @@ def reportDoc(userid, doctorid):
     totalAnxiety = 0
     rowCount = 1
     for x in range(0 ,len(dates)):
+        totalAnxiety = 0
+        rowCount = 1
         for row in Labeled_df.itertuples():
             if (row.date == dates[x]):
                 rowCount += 1
@@ -708,9 +710,29 @@ def reportDoc(userid, doctorid):
 
 
     if(len(analysis) > 0):
-        render_mpl_table(analysis, header_columns=0, col_width=4)
+        render_mpl_table(analysis, header_columns=0, col_width=5)
+    
+    
+    # ## Improvements
+    
+    import math 
+    
+    # get yesterday improvement 
+    today_al = float("{:.1f}".format(math.ceil(plot_df['Anxiety'].mean())))
+    improvement = -1
+    
+    try:
+        ID = "Doctor"+userID
+        doc_ref = db.collection(u'DoctorReports').document(ID)
+        doc = doc_ref.get().to_dict()
+        prev = float("{:.1f}".format(math.ceil(doc['anxiety_level'])))
+        # calculate the improvement
+        improvement= ((prev- float("{:.1f}".format(math.ceil(today_al))))/3)*100  
 
-
+    
+    except:
+        improvement = -1
+    
     # ## Generate doctor report pdf and store it in database
     # 
 
@@ -753,13 +775,13 @@ def reportDoc(userid, doctorid):
     pdf.drawString(290,420,  smoke) 
 
     pdf.setFillColor(colors.HexColor('#bfbfbf'))
-    pdf.roundRect(370,560, 120,30,4,fill=1, stroke= 0)
+    pdf.roundRect(370,560, 125,30,4,fill=1, stroke= 0)
 
     pdf.setFillColorRGB(1,1,1)
-    pdf.drawString(375,570, "GAD Score = ")
+    pdf.drawString(375,570, "GAD-7 Score = ")
 
     pdf.setFont("Helvetica-Bold", 15)
-    pdf.drawString(470,570, gad)
+    pdf.drawString(480,570, gad)
 
 
 
@@ -774,7 +796,12 @@ def reportDoc(userid, doctorid):
     pdf.setFont("Helvetica-Bold", 14)
     pdf.drawString(250,300, "Improvements: ")
 
+    pdf.setFont("Helvetica-Bold", 20)
+    if(improvement == -1):
+        pdf.drawString(290,260, "--")
 
+    else:
+        pdf.drawString(280,260, improvement +'%')
 
 
     pdf.showPage()
@@ -818,7 +845,7 @@ def reportDoc(userid, doctorid):
     pdf.drawString(100,650, "Location Analysis")
 
     if(len(analysis) > 0):
-        pdf.drawImage("Location.png", 57, 400, width=485,height=200)
+        pdf.drawImage("Location.png", 30, 200, width=570,height=100)
 
     else:
         pdf.setFont("Helvetica", 15)
@@ -845,6 +872,7 @@ def reportDoc(userid, doctorid):
 
 
     pdf.save()
+
 
 
     # In[52]:
@@ -881,28 +909,19 @@ def reportDoc(userid, doctorid):
     date = datetime.now()
 
 
-    # # improvement
-
-    # In[63]:
-
-
-    # get yesterday improvement 
-    today_al = plot_df['Anxiety'].mean()
-
-
-    # In[66]:
+    
 
 
     # get before yesterday to calculate the improvement
     try:
-        ID = "Doctor"+userID+"_"+doctorID
+        ID = "Doctor"+userID
         doc_ref = db.collection(u'DoctorReports').document(ID)
         doc = doc_ref.get().to_dict()
         prev = float(doc['anxiety_level'])
         # calculate the improvement
         improvement= ((prev- float(today_al))/3)*100  
         #store the data
-        ID = "Doctor"+userID+"_"+doctorID
+        ID = "Doctor"+userID
         doc_rec = db.collection(u'DoctorReports').document(str(ID))
         doc_rec.set({
             u'doctorId': doctorID ,
@@ -916,7 +935,7 @@ def reportDoc(userid, doctorid):
         })
 
     except:
-        ID = "Doctor"+userID+"_"+doctorID
+        ID = "Doctor"+userID
         doc_rec = db.collection(u'DoctorReports').document(str(ID))
         doc_rec.set({
             u'doctorId': doctorID ,
@@ -924,10 +943,11 @@ def reportDoc(userid, doctorid):
             u'patientId': userID,
             u'reportTime': date,
             u'reportUrl': link,
-            u'improvement': -1,
+            u'improvement': improvement,
             u'anxiety_level': float(today_al)
 
         })
+
 
 
     # In[59]:
