@@ -715,19 +715,19 @@ def reportDoc(userid, doctorid):
     
     # ## Improvements
     
-    import math 
+    
     
     # get yesterday improvement 
-    today_al = float("{:.1f}".format(math.ceil(plot_df['Anxiety'].mean())))
+    today_al = float("{:.2f}".format(plot_df['Anxiety'].mean()))
     improvement = -1
     
     try:
         ID = "Doctor"+userID
         doc_ref = db.collection(u'DoctorReports').document(ID)
         doc = doc_ref.get().to_dict()
-        prev = float("{:.1f}".format(math.ceil(doc['anxiety_level'])))
+        prev = float("{:.2f}".format(doc['anxiety_level']))
         # calculate the improvement
-        improvement= ((prev- float("{:.1f}".format(math.ceil(today_al))))/3)*100  
+        improvement= float("{:.2f}".format(((prev - today_al)/3)*100 ))     
 
     
     except:
@@ -913,38 +913,18 @@ def reportDoc(userid, doctorid):
 
 
     # get before yesterday to calculate the improvement
-    try:
-        ID = "Doctor"+userID
-        doc_ref = db.collection(u'DoctorReports').document(ID)
-        doc = doc_ref.get().to_dict()
-        prev = float(doc['anxiety_level'])
-        # calculate the improvement
-        improvement= ((prev- float(today_al))/3)*100  
-        #store the data
-        ID = "Doctor"+userID
-        doc_rec = db.collection(u'DoctorReports').document(str(ID))
-        doc_rec.set({
+    
+    
+    ID = "Doctor"+userID
+    doc_rec = db.collection(u'DoctorReports').document(str(ID))
+    doc_rec.set({
             u'doctorId': doctorID ,
             u'emailsent':True,
             u'patientId': userID,
             u'reportTime': date,
             u'reportUrl': link,
             u'improvement': improvement,
-            u'anxiety_level': float(today_al)
-
-        })
-
-    except:
-        ID = "Doctor"+userID
-        doc_rec = db.collection(u'DoctorReports').document(str(ID))
-        doc_rec.set({
-            u'doctorId': doctorID ,
-            u'emailsent':True,
-            u'patientId': userID,
-            u'reportTime': date,
-            u'reportUrl': link,
-            u'improvement': improvement,
-            u'anxiety_level': float(today_al)
+            u'anxiety_level': today_al
 
         })
 

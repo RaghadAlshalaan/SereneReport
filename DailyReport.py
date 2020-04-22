@@ -241,7 +241,9 @@ def reportD(pid):
 
 
     # In[18]:
-
+    # i added this code here because it will result an error down because of the datetime
+    yesterday = today - datetime.timedelta(days=1)
+    timestamp = yesterday.strftime("%Y-%m-%d")
 
     from datetime import  datetime
 
@@ -361,10 +363,11 @@ def reportD(pid):
 
 
     # get yesterday improvement 
-    today = datetime.datetime.now()
-    yesterday = today - datetime.timedelta(days=1)
-    timestamp = yesterday.strftime("%Y-%m-%d")
-    today_al = float("{:.1f}".format(math.ceil(plot_df[plot_df.date == timestamp].Anxiety)))
+    #today = datetime.datetime.now()
+    #yesterday = today - datetime.timedelta(days=1)
+    #timestamp = yesterday.strftime("%Y-%m-%d")
+    al = float(plot_df[plot_df.date == timestamp].Anxiety)
+    today_al = float("{:.2f}".format(al))
 
 
 
@@ -372,10 +375,10 @@ def reportD(pid):
     try:
         doc_ref = db.collection(u'DailyReport').document('daily'+"userID")
         doc = doc_ref.get().to_dict()
-        prev = float("{:.1f}".format(math.ceil(doc['anxiety_level'])))
+        prev = float("{:.2f}".format(math.ceil(doc['anxiety_level'])))
         # calculate the improvement
         #1. get today Al
-        improvement= ((prev- float("{:.1f}".format(math.ceil(today_al))))/3)*100  
+        improvement= float("{:.2f}".format(((prev - today_al)/3)*100 ))  
         doc_rec = db.collection(u'DailyReport').document('daily'+userID)
         doc_rec.set({
 
