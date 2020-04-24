@@ -3,7 +3,7 @@ from flask_cors import CORS, cross_origin
 from PatientReport import reportP
 from DailyReport import reportD
 from DoctorReport import reportDoc
-from PatientReportCustomDuration import reportPC
+#from PatientReportCustomDuration import reportPC
 from datetime import date, timedelta
 import datetime
 
