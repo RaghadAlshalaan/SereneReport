@@ -1,4 +1,9 @@
-def reportP(pid,dates):
+    #!/usr/bin/env python
+    # coding: utf-8
+
+    # In[1]:
+def reportP(pid,dates , is_true):
+
     import datetime
     import pandas as pd
     import numpy as np
@@ -11,15 +16,14 @@ def reportP(pid,dates):
     from datetime import date, timedelta
     import urllib.request, json 
     import time
-    import os
     from matplotlib import pyplot as plt
     import matplotlib.dates as mdates
+    import os
     import csv
     from IPython.display import display
     from Model import trainData
     import random
-    #from google.cloud import storage
-
+    
     from matplotlib.patches import Ellipse
     import matplotlib.patches as mpatches
 
@@ -40,7 +44,7 @@ def reportP(pid,dates):
     from reportlab.lib.colors import Color, lightblue, black
 
 
-    # In[66]:
+    # In[2]:
 
 
     if not firebase_admin._apps:
@@ -51,13 +55,16 @@ def reportP(pid,dates):
     else:
             app = firebase_admin.get_app()
     db = firestore.client()
-    from firebase_admin import storage
+
+
+    # In[3]:
 
 
     userID = pid
+    GoogleCalendar = True
 
 
-    # In[13]:
+    # In[4]:
 
 
     today = datetime.datetime.now()
@@ -65,23 +72,31 @@ def reportP(pid,dates):
     bucket = storage.bucket(app=app)
 
 
+    # ## Get data from storage and get list of dates 
+
+    # In[5]:
 
 
 
-    # In[15]:
+    # ### Get Sleep
+
+    # In[6]:
 
 
     notAvailableDates = []
-    
-     # get Sleep 
+
     blob = bucket.blob(userID+"/lastGeneratedPatientReport/sleep.json")
+        # download the file 
     u = blob.generate_signed_url(datetime.timedelta(seconds=300), method='GET')
     with urllib.request.urlopen(u) as url:
         data = json.loads(url.read().decode())
         sleepMinutes = data['sleep']
     sleepFile = pd.DataFrame(sleepMinutes)
-    
-    # analyse some data in sleep 
+
+
+    # In[7]:
+
+
     if(len(sleepFile) > 0):
         Testdate = ''
         sleepMin = 0
@@ -100,9 +115,15 @@ def reportP(pid,dates):
             sleepMinArray.append(sleepMin)
         sleep_df ['date'] = sleepDate
         sleep_df ['sleepMin'] = sleepMinArray
-        
-     # get Steps 
-    blob = bucket.blob(userID+"/lastGeneratedPatientReport/steps.json") 
+
+
+    # ### Get Steps
+
+    # In[8]:
+
+
+    blob = bucket.blob(userID+"/lastGeneratedPatientReport/steps.json")
+        # download the file 
     u = blob.generate_signed_url(datetime.timedelta(seconds=300), method='GET')
     with urllib.request.urlopen(u) as url:
         data = json.loads(url.read().decode())
@@ -110,21 +131,27 @@ def reportP(pid,dates):
     stepsFile = pd.DataFrame(steps)
     stepsFile = stepsFile.rename(columns={'value': 'TotalSteps'})
 
+
+    # ### Get HR
+
+    # In[9]:
+
+
     hr_df = pd.DataFrame()
     for x in range (0, len(dates)):
         blob = bucket.blob(userID+"/fitbitData/"+dates[x]+"/"+dates[x]+"-heartrate.json")
         u = blob.generate_signed_url(datetime.timedelta(seconds=300), method='GET')
-    
+
         try:
             with urllib.request.urlopen(u) as url:
                 data = json.loads(url.read().decode())
                 df_heartrate = pd.DataFrame(data['activities-heart-intraday']['dataset'])
-    
+
             df_heartrate.time.apply(str)
             df_heartrate['time'] = pd.to_datetime(df_heartrate['time'])
             df_heartrate['hour'] = df_heartrate['time'].apply(lambda time: time.strftime('%H'))
             df_heartrate.drop(['time'],axis=1, inplace = True)
-            heart_rate = df_heartrate.groupby(["hour"], as_index=False).max()
+            heart_rate = df_heartrate.groupby(["hour"], as_index=False).mean()
             #heart_rate['sleepMin'] = sleep_df [sleep_df.date == dates[x]].sleepMin
             #heart_rate['TotalSteps'] = stepsFile [stepsFile.dateTime == dates[x]].value
             heart_rate['date'] = dates[x]
@@ -134,19 +161,30 @@ def reportP(pid,dates):
             pass
         hr_df = hr_df.append(heart_rate, ignore_index = True)
 
-        merged = pd.merge(left=hr_df, 
-                  right = sleep_df,
-                  how = 'left',
-                  left_on=['date'],
-                  right_on=['date']).ffill()
 
-        df = pd.merge(left=merged, 
-                  right = stepsFile,
-                  how = 'left',
-                  left_on=['date'],
-                  right_on=['dateTime']).ffill()
+    # ### Merge all three
 
-    # In[17]:
+    # In[10]:
+
+
+    merged = pd.merge(left=hr_df, 
+                      right = sleep_df,
+                      how = 'left',
+                      left_on=['date'],
+                      right_on=['date']).ffill()
+
+
+    # In[11]:
+
+
+    df  = pd.merge(left=merged, 
+                      right = stepsFile,
+                      how = 'left',
+                      left_on=['date'],
+                      right_on=['dateTime']).ffill()
+
+
+    # In[15]:
 
 
     notAvailableDates
@@ -154,7 +192,7 @@ def reportP(pid,dates):
     notSyncedDates ['date'] = notAvailableDates 
 
 
-    # In[18]:
+    # In[16]:
 
 
     notSyncedDates = notSyncedDates.drop_duplicates()
@@ -162,7 +200,7 @@ def reportP(pid,dates):
 
     # ### Get user location
 
-    # In[19]:
+    # In[17]:
 
 
     # get location from database
@@ -178,13 +216,13 @@ def reportP(pid,dates):
     loc_df['id'] = locID
 
 
-    # In[20]:
+    # In[18]:
 
 
     loc_df.drop(['anxietyLevel', 'lat','lng', 'patientID'  ], axis=1, inplace = True)
 
 
-    # In[21]:
+    # In[19]:
 
 
     loc_df.time.apply(str)
@@ -195,6 +233,33 @@ def reportP(pid,dates):
     loc_df.hour = loc_df.hour.astype(int) 
     loc_df.date = loc_df.date.astype(str)
     df.date = df.date.astype(str)
+
+
+    # In[20]:
+
+
+    ## only for testing purpose 
+    TestHigh = df
+    TestHigh = TestHigh.append({'hour' : 9 , 'value' : 103.6, 'date': '2020-04-21',
+                               'sleepMin' : 72, 'TotalSteps': 16806} , ignore_index=True)
+    TestHigh = TestHigh.append({'hour' : 10 , 'value' : 97.4, 'date': '2020-04-21',
+                               'sleepMin' : 72, 'TotalSteps': 16806} , ignore_index=True)
+    TestHigh = TestHigh.append({'hour' : 11 , 'value' : 94.2, 'date': '2020-04-21',
+                               'sleepMin' : 63, 'TotalSteps': 9910} , ignore_index=True)
+    TestHigh = TestHigh.append({'hour' : 12 , 'value' : 96.4, 'date': '2020-04-21',
+                               'sleepMin' : 63, 'TotalSteps': 9910} , ignore_index=True)
+    TestHigh = TestHigh.append({'hour' : 13 , 'value' : 108.9, 'date': '2020-04-21',
+                               'sleepMin' : 69, 'TotalSteps': 12084} , ignore_index=True)
+
+
+    # In[21]:
+
+
+    testFinal = pd.merge(left=TestHigh, 
+                      right = loc_df,
+                      how = 'left',
+                      left_on=['hour','date'],
+                      right_on=['hour','date']).ffill()
 
 
     # In[22]:
@@ -235,10 +300,15 @@ def reportP(pid,dates):
     # Replace missing values because it doesn't exist
     Labeled_df['name'].fillna("Not given", inplace=True)
     Labeled_df['id'].fillna("Not given", inplace=True)
-    Labeled_df['anxiety_assigned'].fillna('Not given', inplace = True)
+    #Labeled_df['anxiety_assigned'].fillna('Not given', inplace = True)
 
 
     # In[27]:
+
+
+
+
+    # In[28]:
 
 
     # Update firebase with the user anxiety level 
@@ -250,7 +320,8 @@ def reportP(pid,dates):
                 anxietyLevel = '2'
             else:
                 anxietyLevel = '3' 
-            if row.anxiety_assigned == False or row.anxiety_assigned == 'Not given': 
+
+            if ((row.anxiety_assigned == False) or (row.anxiety_assigned == 'Not given')): 
                 doc_ref = db.collection(u'PatientLocations').document(row.id)
                 doc_ref.update({
                                 u'anxietyLevel':anxietyLevel,
@@ -260,7 +331,7 @@ def reportP(pid,dates):
 
     # ### Show the places with highest anxiety level
 
-    # In[28]:
+    # In[29]:
 
 
     # Show the highest level 
@@ -268,11 +339,9 @@ def reportP(pid,dates):
     df_high = Labeled_df[Labeled_df.Label == 'High']
 
 
-    # # Improvements
-
     # # Recommendation
 
-    # In[31]:
+    # In[30]:
 
 
     docDf = pd.DataFrame()
@@ -281,7 +350,7 @@ def reportP(pid,dates):
     docDf = docDf.append(pd.DataFrame(doc,index=[0]),ignore_index=True)
 
 
-    # In[32]:
+    # In[31]:
 
 
     age1 = docDf['age'].values
@@ -306,11 +375,11 @@ def reportP(pid,dates):
     compareAge = int(age)
 
 
-    # In[33]:
+    # In[32]:
 
 
     sleepMin = Labeled_df['sleepMin'].mean()
-    totalSteps = Labeled_df['TotalSteps'].mean()
+    totalSteps = Labeled_df['TotalSteps'].astype(float).mean()
 
     sleepRecomendation = False
     stepsRecomendation = False
@@ -336,7 +405,7 @@ def reportP(pid,dates):
 
     # ## Storage intilization
 
-    # In[34]:
+    # In[33]:
 
 
     firebaseConfig = {
@@ -356,13 +425,13 @@ def reportP(pid,dates):
 
     # # AL
 
-    # In[35]:
+    # In[34]:
 
 
     sns.set( rc={'axes.facecolor': '#fcfeff'})
 
 
-    # In[36]:
+    # In[35]:
 
 
     # Change Label values to num, to represent them in a barchart
@@ -377,7 +446,7 @@ def reportP(pid,dates):
     Labeled_df['numLabel'] = nums
 
 
-    # In[37]:
+    # In[36]:
 
 
     # Get anxiety level by day and store it in a new data frame
@@ -399,10 +468,10 @@ def reportP(pid,dates):
     plot_df['Anxiety'] = avgAnxiety
 
 
-    # In[38]:
+    # In[37]:
 
 
-    #divide dataframe into 15 rows (2 weeks) ) max is 3 months
+    #divide dataframe into 15 rows (2 weeks) max is 3 months
 
     df1 = pd.DataFrame()
     df2 = pd.DataFrame()
@@ -410,7 +479,6 @@ def reportP(pid,dates):
     df4 = pd.DataFrame()
     df5 = pd.DataFrame()
     df6 = pd.DataFrame()
-    
     dfarray = []
     count = 0
     if(len(plot_df) > 15):
@@ -434,10 +502,11 @@ def reportP(pid,dates):
                         count = (df5.last_valid_index() - (len(df5) - 15))
                         df6 = df5[count:]
                         dfarray.append(df6)
-                       
 
 
-    # In[39]:
+
+
+    # In[38]:
 
 
     # Plot AL
@@ -552,7 +621,7 @@ def reportP(pid,dates):
 
     # ### save file to database first
 
-    # In[40]:
+    # In[39]:
 
 
     if (len(plot_df)<15):
@@ -605,17 +674,9 @@ def reportP(pid,dates):
 
     # ## To generate graphs for PDF report
 
-    # In[41]:
+    # In[40]:
 
 
-
-
-
-    
-
-
-    # Plot AL
-    
     fig, ax = plt.subplots()
     c1 = '#9dd6f5'
     c2 = '#4ba0d1'
@@ -640,7 +701,7 @@ def reportP(pid,dates):
     patchList = []
     for key in legend_dict:
         data_key = mpatches.Patch(facecolor=legend_dict[key][0], 
-                             edgecolor=legend_dict[key][1], label=key)
+                    edgecolor=legend_dict[key][1], label=key)
         patchList.append(data_key)
 
     ax.legend(handles=patchList,ncol=len(categories), fontsize=12)   
@@ -662,11 +723,13 @@ def reportP(pid,dates):
 
     fig.savefig('ALpdf.png', dpi = None)
 
-   
+
+
+
 
     # # Location Analysis
 
-    # In[43]:
+    # In[41]:
 
 
     # get location from database
@@ -683,7 +746,7 @@ def reportP(pid,dates):
 
 
 
-    # In[44]:
+    # In[42]:
 
 
     new_loc.time.apply(str)
@@ -693,13 +756,13 @@ def reportP(pid,dates):
     new_loc.date = new_loc.date.astype(str)
 
 
-    # In[45]:
+    # In[43]:
 
 
     new_loc = new_loc[(new_loc.date >= dates[0]) & (new_loc.date <= dates[len(dates)-1])]
 
 
-    # In[47]:
+    # In[44]:
 
 
     names = []
@@ -709,21 +772,21 @@ def reportP(pid,dates):
         names.append(Name)
 
 
-    # In[48]:
+    # In[45]:
 
 
     new_name =pd.DataFrame()
     new_name ['name']= names
 
 
-    # In[49]:
+    # In[46]:
 
 
     new_name = new_name.drop_duplicates()
     new_name.dropna()
 
 
-    # In[50]:
+    # In[47]:
 
 
     fnames = []
@@ -733,14 +796,14 @@ def reportP(pid,dates):
         fnames.append(fName)
 
 
-    # In[51]:
+    # In[48]:
 
 
     analysis_EN = pd.DataFrame()
     analysis_AR = pd.DataFrame()
     count = 0
     i = 0
-    label = ""
+    #label = ""
     locationName = ""
     near = ''
     nearLocs = []
@@ -757,56 +820,56 @@ def reportP(pid,dates):
                     label = row.anxietyLevel
                     locationName = row.name
                     near = row.nearestLoc    
-                
-        
+
+
         i+=1           
         counts.append(count)
-        labels.append(label)
+        #labels.append(label)
         locationNames.append(locationName)
         nearLocs.append(near)
-    
+
     analysis_EN ['Location'] = locationNames
-    analysis_EN ['Frequency'] = counts
-    analysis_EN ['Anxiety Level'] = labels
+    analysis_EN ['Number of occurrences'] = counts
+    #analysis_EN ['Anxiety Level'] = labels
     analysis_EN ['Nearest Location'] = nearLocs
 
     analysis_AR ['الموقع'] = locationNames
-    analysis_AR ['التكرار'] = counts
-    analysis_AR ['مستوى القلق'] = labels
+    analysis_AR ['عدد مرات الزيارة'] = counts
+    #analysis_AR ['مستوى القلق'] = labels
     analysis_AR ['أقرب موقع'] = nearLocs
 
 
-    # In[53]:
+    # In[49]:
 
 
-    newEn = analysis.drop(analysis[analysis['Frequency'] == 0].index, inplace= True)
-    newAr = analysis_AR.drop(analysis_AR[analysis_AR['التكرار'] == 0].index, inplace= True)
-
-    # In[54]:
+    newEn = analysis_EN.drop(analysis_EN[analysis_EN['Number of occurrences'] == 0].index, inplace= True)
+    newAr = analysis_AR.drop(analysis_AR[analysis_AR['عدد مرات الزيارة'] == 0].index, inplace= True)
 
 
-    analysis_EN ['Anxiety Level'] = 'High'
-    analysis_AR  ['مستوى القلق'] = 'مرتفع'
+    # In[50]:
 
 
-    # In[55]:
+    #analysis_EN ['Anxiety Level'] = 'High'
+    #analysis_AR  ['مستوى القلق'] = 'مرتفع'
+
+
+    # In[51]:
 
 
     import six
 
     import arabic_reshaper
+    from googletrans import Translator
     from bidi.algorithm import get_display
 
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
-    from googletrans import Translator
 
 
+    # In[52]:
 
-    # In[56]:
 
-
-    def render_mpl_table(data, col_width=5.0, row_height=0.625, font_size=14,tran = '',
+    def render_mpl_table(data, col_width=5.0, row_height=0.625, font_size=14, tran = '',
                          header_color='#23495f', row_colors=['#e1eff7', 'w'], edge_color='#23495f',
                          bbox=[0, 0, 1, 1], header_columns=0,
                         ax=None, **kwargs):
@@ -834,29 +897,28 @@ def reportP(pid,dates):
 
 
 
-
         fig.savefig(tran+'.png', dpi = 100)
         return ax
 
 
-    # In[57]:
+    # In[53]:
 
 
     if(len(analysis_EN) > 0):
         for ind,row in analysis_EN.iterrows():
-               analysis_EN.loc[ind,'Nearest  Location']=get_display(arabic_reshaper.reshape(analysis_EN.loc[ind,'Nearest Location']))
+            analysis_EN.loc[ind,'Nearest Location']=get_display(arabic_reshaper.reshape(analysis_EN.loc[ind,'Nearest Location']))
     if(len(analysis_AR) > 0):
         for ind,row in analysis_AR.iterrows():
             analysis_AR.loc[ind,'أقرب موقع']=get_display(arabic_reshaper.reshape(analysis_AR.loc[ind,'أقرب موقع']))
-            analysis_AR.loc[ind,'مستوى القلق']=get_display(arabic_reshaper.reshape(analysis_AR.loc[ind,'مستوى القلق']))
+           # analysis_AR.loc[ind,'مستوى القلق']=get_display(arabic_reshaper.reshape(analysis_AR.loc[ind,'مستوى القلق']))
         analysis_AR = analysis_AR.rename(columns={'الموقع': get_display(arabic_reshaper.reshape('الموقع')) })
         analysis_AR = analysis_AR.rename(columns={'التكرار': get_display(arabic_reshaper.reshape('التكرار')) })
-        analysis_AR = analysis_AR.rename(columns={'مستوى القلق': get_display(arabic_reshaper.reshape('مستوى القلق')) })
+        #analysis_AR = analysis_AR.rename(columns={'مستوى القلق': get_display(arabic_reshaper.reshape('مستوى القلق')) })
         analysis_AR = analysis_AR.rename(columns={'أقرب موقع': get_display(arabic_reshaper.reshape('أقرب موقع')) }) 
-                           
 
 
-    # In[58]:
+
+    # In[54]:
 
 
     if(len(analysis_EN) > 0):
@@ -865,116 +927,204 @@ def reportP(pid,dates):
         render_mpl_table(analysis_AR, header_columns=0, col_width=5, tran ='Location-AR')
 
 
-    # # Events with highest level of anxiety Note array will be changed soon
-   
-    from dateutil.parser import parse
-    events = pd.DataFrame()
-    testEvents = ['2020-04-21 01:10:02.692263 Test','2020-04-21 11:10:02.692263 Home Work',
-              '2020-04-21 12:10:02.692263 Final' ]
-    date_result = ''
-    name_result = ''
-    Final_names = []
-    Final_dates = []
-    for x in range(0,len(testEvents)):
-        result = parse(testEvents[x], fuzzy_with_tokens=True)
-        date_result = result[0]
-        name_result = result[1]
-        Final_dates.append(date_result)
-        Final_names.append(name_result)
-    
-
-    events ['time'] = Final_dates
-    events ['eventName'] = Final_names
-
-    events.time.apply(str)
-    events['time'] = pd.to_datetime(events['time'])
-    events['date'] = pd.to_datetime(events['time'], format='%Y:%M:%D').dt.date
-    events['hour'] = events['time'].apply(lambda time: time.strftime('%H'))
-    events.drop(['time'], axis=1, inplace = True)
-    events.hour = events.hour.astype(int) 
-    events.date = events.date.astype(str)
-
-    Test = Labeled_df
-    
-    merge_df = pd.merge(left=Test, 
-                  right = events,
-                  how = 'left',
-                  left_on=['hour','date'],
-                  right_on=['hour','date']).ffill()
-    merge_df['eventName'].fillna("Not given", inplace=True)
-    merge_df= merge_df[merge_df.eventName != 'Not given']
-    
-    
-    finalEvents_EN = pd.DataFrame()
-    finalEvents_AR = pd.DataFrame()
-    ev_name=''
-    evNames = []
-    evLabels = []
-    evDate = []
-    for row in merge_df.itertuples():
-        if row.eventName != ev_name:
-            if row.Label == 'High':
-                ev_name = row.eventName
-                ev_label = row.Label
-                ev_date = row.date
-        if(ev_name != ''):
-            evNames.append(ev_name)
-            evLabels.append(ev_label)
-            evDate.append(ev_date)
-    
-    finalEvents_EN ['Event Name'] = evNames
-    finalEvents_EN['Anxiety Level'] = evLabels
-    finalEvents_EN['Date'] = evDate
-
-    finalEvents_AR ['اسم الحدث'] = evNames
-    finalEvents_AR['مستوى القلق'] = evLabels
-    finalEvents_AR['تاريخ الحدث'] = evDate
-
-    
-    finalEvents_EN = finalEvents_EN.drop_duplicates()
-    finalEvents_AR = finalEvents_AR.drop_duplicates()
-    
-    if(len(finalEvents_EN) > 0):
-        for ind,row in finalEvents_EN.iterrows():
-            try:
-                finalEvents_EN.loc[ind,'Event Name']=get_display(arabic_reshaper.reshape(
-                finalEvents_EN.loc[ind,'Event Name']))
-            except:
-                pass
-
-    if(len(finalEvents_AR) > 0):
-        finalEvents_AR['مستوى القلق'] = 'مرتفع'
-        for ind,row in finalEvents_AR.iterrows():
-            try:
-                finalEvents_AR.loc[ind,'اسم الحدث']=get_display(arabic_reshaper.reshape(finalEvents_AR.loc[ind,'اسم الحدث']))
-                finalEvents_AR.loc[ind,'مستوى القلق']=get_display(arabic_reshaper.reshape(finalEvents_AR.loc[ind,'مستوى القلق']))
-            except:
-                pass
-        finalEvents_AR = finalEvents_AR.rename(columns={'اسم الحدث': get_display(arabic_reshaper.reshape('اسم الحدث')) })
-        finalEvents_AR = finalEvents_AR.rename(columns={'مستوى القلق': get_display(arabic_reshaper.reshape('مستوى القلق')) })
-        finalEvents_AR = finalEvents_AR.rename(columns={'تاريخ الحدث': get_display(arabic_reshaper.reshape('تاريخ الحدث')) })
-
-             
-            
-    if(len(finalEvents_EN) > 0):
-        render_mpl_table(finalEvents_EN, header_columns=0, col_width=4, tran ='Events-EN')
-    if(len(finalEvents_AR) > 0):
-        render_mpl_table(finalEvents_AR, header_columns=0, col_width=4, tran ='Events-AR')
-    # # Genertate patient report and save it in storage
+    # # Events with highest level of anxiety
 
     # In[59]:
 
 
-    from reportlab.lib import colors
+    from dateutil.parser import parse
 
 
     # In[60]:
 
 
-    pdfmetrics.registerFont(TTFont('Arabic', 'traditional-arabic/tradbdo.TTF'))
+    if GoogleCalendar == True:
+        events_df = pd.DataFrame()
+        finalEvents_EN = pd.DataFrame()
+        finalEvents_AR = pd.DataFrame()
+        eventID = []
+        events = db.collection(u'PatientEvents').where(u'patientID', u'==', userID ).stream()
+
+        for event in events:
+            ev = event.to_dict()
+            eventID.append(event.id)
+            events_df = events_df.append(pd.DataFrame(ev,index=[0]),ignore_index=True)     
+        events_df['idEvent'] = eventID
 
 
     # In[61]:
+
+
+    if len(events_df) > 0:
+       newDates = []
+       for row in events_df.itertuples():
+           newDate = parse(row.date)
+           newDates.append(newDate)
+       events_df['newDate'] = newDates
+
+       events_df = events_df.rename(columns={'name': 'eventName'})
+       events_df.newDate.apply(str)
+       events_df['date'] = pd.to_datetime(events_df['newDate'], format='%Y:%M:%D').dt.date
+       events_df['hour'] = events_df['newDate'].apply(lambda time: time.strftime('%H'))
+       events_df.hour = events_df.hour.astype(int) 
+       events_df.date = events_df.date.astype(str)
+
+       Test = Labeled_df
+
+       merge_df = pd.merge(left=Test, 
+                         right = events_df,
+                         how = 'left',
+                         left_on=['hour','date'],
+                         right_on=['hour','date']).ffill()
+
+       merge_df['eventName'].fillna("Not given", inplace=True)
+       merge_df= merge_df[merge_df.eventName != 'Not given']
+
+       #finalEvents_EN = pd.DataFrame()
+       #finalEvents_AR = pd.DataFrame()
+       ev_name=''
+       evNames = []
+       #evLabels = []
+       evDate = []
+       for row in merge_df.itertuples():
+           if row.eventName != ev_name:
+               if row.Label == 'High':
+                   ev_name = row.eventName
+                   #ev_label = row.Label
+                   ev_date = row.date
+           if(ev_name != ''):
+               evNames.append(ev_name)
+               #evLabels.append(ev_label)
+               evDate.append(ev_date)
+
+       finalEvents_EN ['Event Name'] = evNames
+       #finalEvents_EN['Anxiety Level'] = evLabels
+       finalEvents_EN['Date'] = evDate
+
+       finalEvents_AR ['اسم الحدث'] = evNames
+       #finalEvents_AR['مستوى القلق'] = evLabels
+       finalEvents_AR['تاريخ الحدث'] = evDate
+
+       finalEvents_EN = finalEvents_EN.drop_duplicates()
+       finalEvents_AR = finalEvents_AR.drop_duplicates()
+
+       Final_duplicated = pd.DataFrame()
+       eventID = ''
+       eventIDs = []
+       event_Labels = []
+       event_names = []
+       hours = []
+       for row in merge_df.itertuples():
+           if eventID != row.idEvent:
+               eventID = row.idEvent
+           if eventID != '':
+               eventIDs.append(eventID)
+               event_Labels.append(row.Label)
+               event_names.append(row.eventName)
+               hours.append(row.hour)
+       Final_duplicated ['id'] = eventIDs
+       Final_duplicated ['Label'] = event_Labels
+       Final_duplicated ['name'] = event_names
+       Final_duplicated ['hour'] = hours
+       Final_duplicated = Final_duplicated.drop_duplicates(subset ='id')
+
+
+       # Update firebase with the user anxiety level 
+       for row in Final_duplicated.itertuples():
+           if row.Label == 'High':
+               doc_ref = db.collection(u'PatientEvents').document(row.id)
+               doc_ref.update({
+                                           u'anxietyLevel':'3'
+                                   })
+           else:
+               doc_ref = db.collection(u'PatientEvents').document(row.id)
+               doc_ref.delete()
+       checkEvents_df = pd.DataFrame()
+       cEventsID = []
+       checkEvents = db.collection(u'PatientEvents').where(u'patientID', u'==', userID ).stream()
+
+       for event in checkEvents:
+           cEv = event.to_dict()
+           cEventsID.append(event.id)
+           checkEvents_df = checkEvents_df.append(pd.DataFrame(cEv,index=[0]),ignore_index=True)     
+       checkEvents_df['id'] = cEventsID
+       checkEvents_df.fillna("Not given", inplace=True)
+
+
+
+       if len(checkEvents_df) > 0:
+           checkEvents_df = checkEvents_df[checkEvents_df.anxietyLevel == 'Not given']
+           for row in checkEvents_df.itertuples():
+               doc_ref = db.collection(u'PatientEvents').document(row.id)
+               doc_ref.delete()
+
+
+    # In[62]:
+
+
+    if(len(finalEvents_EN) > 0):
+        finalEvents_EN = finalEvents_EN.drop_duplicates()
+        finalEvents_AR = finalEvents_AR.drop_duplicates()
+
+
+
+    # In[63]:
+
+
+    if(len(finalEvents_EN) > 0):
+        for ind,row in finalEvents_EN.iterrows():
+            try:
+                finalEvents_EN.loc[ind,'Event Name']=get_display(arabic_reshaper.reshape(
+                   finalEvents_EN.loc[ind,'Event Name']))
+            except:
+                pass
+
+    if(len(finalEvents_AR) > 0):
+        #finalEvents_AR['مستوى القلق'] = 'مرتفع'
+        for ind,row in finalEvents_AR.iterrows():
+            try:
+                finalEvents_AR.loc[ind,'اسم الحدث']=get_display(arabic_reshaper.reshape(finalEvents_AR.loc[ind,'اسم الحدث']))
+                #finalEvents_AR.loc[ind,'مستوى القلق']=get_display(arabic_reshaper.reshape(finalEvents_AR.loc[ind,'مستوى القلق']))
+            except:
+                pass
+        finalEvents_AR = finalEvents_AR.rename(columns={'اسم الحدث': get_display(arabic_reshaper.reshape('اسم الحدث')) })
+        #finalEvents_AR = finalEvents_AR.rename(columns={'مستوى القلق': get_display(arabic_reshaper.reshape('مستوى القلق')) })
+        finalEvents_AR = finalEvents_AR.rename(columns={'تاريخ الحدث': get_display(arabic_reshaper.reshape('تاريخ الحدث')) })
+
+
+
+
+    # In[64]:
+
+
+    if(len(finalEvents_EN) > 0):
+        render_mpl_table(finalEvents_EN, header_columns=0, col_width=4, tran ='Events-EN')
+    if(len(finalEvents_AR) > 0):
+        render_mpl_table(finalEvents_AR, header_columns=0, col_width=4, tran ='Events-AR')
+
+
+    # In[ ]:
+
+
+
+
+
+
+    # # Genertate patient report and save it in storage
+
+    # In[65]:
+
+
+    from reportlab.lib import colors
+
+
+    # In[66]:
+
+
+    pdfmetrics.registerFont(TTFont('Arabic', 'traditional-arabic/tradbdo.TTF'))
+
+
+    # In[67]:
 
 
     pdf = canvas.Canvas('Patient-EN.pdf')
@@ -1000,7 +1150,7 @@ def reportP(pid,dates):
 
     pdf.setFont("Helvetica-Bold", 20)
     pdf.setFillColor(colors.HexColor('#23495f'))
-    
+
     pdf.drawString(100,570, "Patient Information")
 
     pdf.setFont("Helvetica-Bold", 15)
@@ -1069,7 +1219,7 @@ def reportP(pid,dates):
         for line in text:
             t.textLine(line)
         pdf.drawText(t)
-                            
+
     else:
         t = pdf.beginText(100,200)
         text = ["Great Work! You're considered an active person based on your average steps per day.",
@@ -1077,7 +1227,7 @@ def reportP(pid,dates):
         for line in text:
             t.textLine(line)
         pdf.drawText(t)
-    
+
 
     pdf.showPage()
 
@@ -1095,7 +1245,7 @@ def reportP(pid,dates):
 
     pdf.drawImage("ALpdf.png", 57, 400, width=485,height=200)
 
-    pdf.drawString(100,320, "Location Analysis")
+    pdf.drawString(100,320, "Locations With Highest Level of Anxiety")
     if(len(analysis_EN) > 0):
         pdf.drawImage("Location-EN.png", 30, 200,width=570,height=100)
     else:
@@ -1118,23 +1268,33 @@ def reportP(pid,dates):
 
     pdf.setFont("Helvetica-Bold", 20)
     pdf.setFillColor(colors.HexColor('#808080'))
-    pdf.drawString(100,650, "Events Analysis")
+    pdf.drawString(100,650, "Events With Highest Level of Anxiety")
 
     if(len(finalEvents_EN)>0):
         pdf.drawImage("Events-EN.png", 30, 500, width=550,height=100)
+    elif (len(finalEvents_EN)<0 and GoogleCalendar == True):
+        pdf.setFont("Helvetica", 15)
+        pdf.setFillColor(colors.HexColor('#23495f'))
+
+        t = pdf.beginText(130,550)
+        text = [
+        "No events found associated with high anxiety level"]
+        for line in text:
+            t.textLine(line)
+
+        pdf.drawText(t)
     else:
         pdf.setFont("Helvetica", 15)
         pdf.setFillColor(colors.HexColor('#23495f'))
 
         t = pdf.beginText(130,550)
         text = [
-        name +" condition was stable through this period,", 
-        "no event with high anxiety level were detected." ]
+        name +" have not synced Google Calendar events,", 
+        "with thier account." ]
         for line in text:
             t.textLine(line)
 
         pdf.drawText(t)
-
 
     if(len(notSyncedDates) != 0):  
         pdf.setFont("Helvetica", 12)
@@ -1148,7 +1308,7 @@ def reportP(pid,dates):
     pdf.save()
 
 
-    # In[62]:
+    # In[68]:
 
 
     def translate(text):
@@ -1157,12 +1317,16 @@ def reportP(pid,dates):
         return bidi_text
 
 
-    # In[63]:
+    # In[69]:
+
 
     def from_en_to_ar(text):
         translator = Translator()
         result = translator.translate(text, dest='ar')
         return result.text
+
+
+    # In[70]:
 
 
     pdf = canvas.Canvas('Patient-AR.pdf')
@@ -1299,18 +1463,18 @@ def reportP(pid,dates):
 
     pdf.drawString(400,650, AL)
 
-    loc = translate (u'تحليل المواقع')
+    loc = translate (u' تحليل المواقع ذات مستوى قلق مرتفع')
 
     pdf.drawImage("ALpdf.png", 57, 400, width=485,height=200)
     pdf.drawString(390,320, loc)
-    if(len(analysis_AR) > 0):
+    if(len(analysis_AR) < 0):
         pdf.drawImage("Location-AR.png", 10, 200, width=570,height=100)
     else:
         pdf.setFont("Arabic", 18)
         pdf.setFillColor(colors.HexColor('#23495f'))
 
         text = translate (u'كانت الحالة مستقرة خلال هذه الفترة, لم يتم الكشف عن أي مواقع ذات مستوى قلق مرتفع.')
-        pdf.drawString(60,250, text)
+        pdf.drawString(50,250, text)
 
 
     pdf.showPage()
@@ -1320,19 +1484,24 @@ def reportP(pid,dates):
 
     pdf.setFont("Arabic", 28)
     pdf.setFillColor(colors.HexColor('#808080'))
-    EV = translate(u'تحليل الأحداث')
+    EV = translate(u'تحليلات الأحداث ذات مستوى قلق مرتفع')
     pdf.drawString(380,650, EV)
 
 
     if(len(finalEvents_AR)>0):
         pdf.drawImage("Events-AR.png", 20, 500, width=550,height=100)
+    elif (len(finalEvents_EN)<0 and GoogleCalendar == True):
+        pdf.setFont("Arabic", 18)
+        pdf.setFillColor(colors.HexColor('#23495f'))
+
+        text = translate (u' لم يتم الكشف أي أحداث ذات مستوى قلق مرتفع.')
+        pdf.drawString(250,550, text)
     else:
         pdf.setFont("Arabic", 18)
         pdf.setFillColor(colors.HexColor('#23495f'))
 
-        text = translate (u'كانت الحالة مستقرة خلال هذه الفترة, لم يتم الكشف عن أي أحداث ذات مستوى قلق مرتفع.')
-        pdf.drawString(60,550, text)
-
+        text = translate (u'المستخدم لم يقم بمزامنة أحداث تقويم قوقل بحساب سيرين.')
+        pdf.drawString(200,550, text)
 
     if(len(notSyncedDates) != 0):  
         pdf.setFont("Arabic", 15)
@@ -1348,7 +1517,7 @@ def reportP(pid,dates):
     pdf.save()
 
 
-    # In[64]:
+    # In[71]:
 
 
     #new method
@@ -1356,7 +1525,7 @@ def reportP(pid,dates):
     doct = storage.child(userID+"/lastGeneratedPatientReport/patientReport-AR").put('Patient-AR.pdf')
 
 
-    # In[65]:
+    # In[72]:
 
 
     os.remove('Patient-EN.pdf')
@@ -1367,27 +1536,24 @@ def reportP(pid,dates):
     else:
         for x in range(0,len(dfarray)):
             os.remove('AL'+str(x)+'pdf.png')
-
     if(len(finalEvents_AR) > 0 ):
         os.remove('Events-AR.png')
         os.remove('Events-EN.png')
     if(len(analysis_AR)>0):
         os.remove('Location-AR.png')
         os.remove('Location-EN.png')
+
+
+    to_json = plot_df[['date','Anxiety']].to_json()
     
+    return to_json
     # In[ ]:
 
 
 
 
-
     # In[ ]:
 
-    freqs = {
-        'Message': 'Some msg',
-        'Result': "ksu"
-    }
-    return freqs
 
 
 
