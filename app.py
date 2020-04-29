@@ -48,7 +48,7 @@ def patient_custom_report(pid, start , end ,is_true):
 @app.route("/daily_report/<string:pid>", methods=['GET'])
 def daily_report(pid):
     daily_report = reportD(pid)
-    return jsonify(daily_report)
+    return daily_report
 
 @app.route("/home1/<string:name>/<int:id>", methods=['GET'])
 def hello1(name, id):

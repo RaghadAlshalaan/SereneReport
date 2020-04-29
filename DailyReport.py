@@ -122,7 +122,7 @@ def reportD(pid):
             df_heartrate['time'] = pd.to_datetime(df_heartrate['time'])
             df_heartrate['hour'] = df_heartrate['time'].apply(lambda time: time.strftime('%H'))
             df_heartrate.drop(['time'],axis=1, inplace = True)
-            heart_rate = df_heartrate.groupby(["hour"], as_index=False).max()
+            heart_rate = df_heartrate.groupby(["hour"], as_index=False).mean()
             heart_rate['sleepMin'] = sleepMinutes
             heart_rate['TotalSteps'] = steps
             heart_rate['date'] = dates[x]
@@ -242,7 +242,7 @@ def reportD(pid):
 
     # In[18]:
     # i added this code here because it will result an error down because of the datetime
-    yesterday = today - datetime.timedelta(days=1)
+    yesterday = today - timedelta(days=1)
     timestamp = yesterday.strftime("%Y-%m-%d")
 
     from datetime import  datetime
@@ -398,12 +398,11 @@ def reportD(pid):
 
 
     # In[ ]:
+    json_df = plot_df[['Anxiety','date']].to_json()
 
 
-    freqs = {
-        'Daily': 'YAAAY'
-    }
-    return freqs
+   
+    return json_df
 
 
 

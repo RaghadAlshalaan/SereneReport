@@ -1,8 +1,8 @@
     #!/usr/bin/env python
     # coding: utf-8
 
-    # In[1]:
-def reportDoc(userid, doctorid):
+    # In[96]:
+def doctor(pid , did):
 
     import datetime
     import pandas as pd
@@ -45,7 +45,7 @@ def reportDoc(userid, doctorid):
     from reportlab.lib.colors import Color, lightblue, black
 
 
-    # In[2]:
+    # In[97]:
 
 
     if not firebase_admin._apps:
@@ -58,7 +58,7 @@ def reportDoc(userid, doctorid):
     db = firestore.client()
 
 
-    # In[6]:
+    # In[98]:
 
 
     today = datetime.datetime.now()
@@ -68,12 +68,12 @@ def reportDoc(userid, doctorid):
 
     # ## Get data from storage and get list of dates (2 weeks)
 
-    # In[7]:
+    # In[99]:
 
 
     #get a a list of date between start and end date 
-    userID = userid
-    doctorID = doctorid
+    userID = pid
+    doctorID = did
     duration = 15 # two weeks
     dates =[]
     for x in range(0 ,duration):
@@ -83,7 +83,7 @@ def reportDoc(userid, doctorid):
         dates.append(start_date)
 
 
-    # In[8]:
+    # In[100]:
 
 
     df= pd.DataFrame()
@@ -127,7 +127,7 @@ def reportDoc(userid, doctorid):
             df_heartrate['time'] = pd.to_datetime(df_heartrate['time'])
             df_heartrate['hour'] = df_heartrate['time'].apply(lambda time: time.strftime('%H'))
             df_heartrate.drop(['time'],axis=1, inplace = True)
-            heart_rate = df_heartrate.groupby(["hour"], as_index=False).max()
+            heart_rate = df_heartrate.groupby(["hour"], as_index=False).mean()
             heart_rate['sleepMin'] = sleepMinutes
             heart_rate['TotalSteps'] = steps
             heart_rate['date'] = dates[x]
@@ -140,7 +140,7 @@ def reportDoc(userid, doctorid):
         df = df.append(heart_rate, ignore_index = True)
 
 
-    # In[9]:
+    # In[101]:
 
 
     notAvailableDates
@@ -148,18 +148,21 @@ def reportDoc(userid, doctorid):
     notSyncedDates ['date'] = notAvailableDates 
 
 
-    # In[10]:
+    # In[102]:
 
 
     notSyncedDates = notSyncedDates.drop_duplicates()
 
 
-    # In[11]:
+    # In[103]:
+
+
+    notSyncedDates
 
 
     # ### Get user location
 
-    # In[12]:
+    # In[104]:
 
 
     # get location from database
@@ -176,13 +179,13 @@ def reportDoc(userid, doctorid):
 
 
 
-    # In[13]:
+    # In[105]:
 
 
     loc_df.drop(['anxietyLevel', 'lat','lng', 'patientID'  ], axis=1, inplace = True)
 
 
-    # In[14]:
+    # In[106]:
 
 
     loc_df.time.apply(str)
@@ -195,7 +198,7 @@ def reportDoc(userid, doctorid):
     df.date = df.date.astype(str)
 
 
-    # In[15]:
+    # In[107]:
 
 
     dfinal = pd.merge(left=df, 
@@ -207,27 +210,27 @@ def reportDoc(userid, doctorid):
 
     # ### Test data into model
 
-    # In[16]:
+    # In[108]:
 
 
     #test model 
     train_df = dfinal.rename(columns={'value': 'Heartrate'})
 
 
-    # In[17]:
+    # In[109]:
 
 
     Labeled_df = pd.DataFrame()
     Labeled_df = trainData(train_df)
 
 
-    # In[18]:
+    # In[110]:
 
 
     Labeled_df.drop(['lon'],axis=1, inplace = True)
 
 
-    # In[19]:
+    # In[111]:
 
 
     Labeled_df['name'].fillna("Not given", inplace=True)
@@ -235,7 +238,7 @@ def reportDoc(userid, doctorid):
     Labeled_df['anxiety_assigned'].fillna('Not given', inplace = True)
 
 
-    # In[20]:
+    # In[112]:
 
 
     # Update firebase with the user anxiety level 
@@ -257,7 +260,7 @@ def reportDoc(userid, doctorid):
 
     # ### Show the places with highest anxiety level
 
-    # In[21]:
+    # In[113]:
 
 
     # Show the highest level 
@@ -267,7 +270,7 @@ def reportDoc(userid, doctorid):
 
     # # Get patient information
 
-    # In[24]:
+    # In[114]:
 
 
     docDf = pd.DataFrame()
@@ -276,7 +279,7 @@ def reportDoc(userid, doctorid):
     docDf = docDf.append(pd.DataFrame(doc,index=[0]),ignore_index=True)
 
 
-    # In[25]:
+    # In[115]:
 
 
     age1 = docDf['age'].values
@@ -300,7 +303,7 @@ def reportDoc(userid, doctorid):
 
     # ## Storage intiliazation
 
-    # In[26]:
+    # In[116]:
 
 
     firebaseConfig = {
@@ -320,13 +323,13 @@ def reportDoc(userid, doctorid):
 
     # # HR
 
-    # In[27]:
+    # In[117]:
 
 
     sns.set( rc={'axes.facecolor': '#fcfeff'})
 
 
-    # In[28]:
+    # In[118]:
 
 
     # Take the highest heartrate in a day
@@ -347,7 +350,7 @@ def reportDoc(userid, doctorid):
     dfhr['hr'] = hr
 
 
-    # In[29]:
+    # In[119]:
 
 
     plt.figure(figsize=(20, 7))
@@ -366,7 +369,7 @@ def reportDoc(userid, doctorid):
 
     # # Steps
 
-    # In[30]:
+    # In[120]:
 
 
     dfstep = pd.DataFrame()
@@ -385,7 +388,7 @@ def reportDoc(userid, doctorid):
     dfstep['Steps'] = avgSteps
 
 
-    # In[31]:
+    # In[121]:
 
 
     # Plot Steps
@@ -406,7 +409,7 @@ def reportDoc(userid, doctorid):
 
     # # Sleep
 
-    # In[32]:
+    # In[122]:
 
 
     dfsleep = pd.DataFrame()
@@ -424,7 +427,7 @@ def reportDoc(userid, doctorid):
     dfsleep['sleep'] =  sleeps
 
 
-    # In[33]:
+    # In[123]:
 
 
     figs = dfsleep.plot.bar(x = 'date', y = 'sleep', rot = 70, color= '#3629a6', capstyle = 'round').get_figure()
@@ -440,7 +443,7 @@ def reportDoc(userid, doctorid):
 
     # # AL
 
-    # In[34]:
+    # In[124]:
 
 
     # Change Label values to num, to represent them in a barchart
@@ -455,7 +458,7 @@ def reportDoc(userid, doctorid):
     Labeled_df['numLabel'] = nums
 
 
-    # In[35]:
+    # In[125]:
 
 
     # Get anxiety level by day and store it in a new data frame
@@ -477,7 +480,7 @@ def reportDoc(userid, doctorid):
     plot_df['Anxiety'] = avgAnxiety
 
 
-    # In[36]:
+    # In[126]:
 
 
     fig, ax = plt.subplots()
@@ -542,7 +545,7 @@ def reportDoc(userid, doctorid):
 
     # # Location Analysis
 
-    # In[37]:
+    # In[127]:
 
 
     # get location from database
@@ -558,7 +561,7 @@ def reportDoc(userid, doctorid):
     new_loc['id'] = locID
 
 
-    # In[38]:
+    # In[128]:
 
 
     new_loc.time.apply(str)
@@ -568,13 +571,13 @@ def reportDoc(userid, doctorid):
     new_loc.date = new_loc.date.astype(str)
 
 
-    # In[39]:
+    # In[129]:
 
 
     new_loc = new_loc[(new_loc.date >= dates[0]) & (new_loc.date <= dates[len(dates)-1])]
 
 
-    # In[40]:
+    # In[130]:
 
 
     names = []
@@ -584,21 +587,21 @@ def reportDoc(userid, doctorid):
         names.append(Name)
 
 
-    # In[41]:
+    # In[131]:
 
 
     new_name =pd.DataFrame()
     new_name ['name']= names
 
 
-    # In[42]:
+    # In[132]:
 
 
     new_name = new_name.drop_duplicates()
     new_name.dropna()
 
 
-    # In[44]:
+    # In[133]:
 
 
     fnames = []
@@ -608,18 +611,18 @@ def reportDoc(userid, doctorid):
         fnames.append(fName)
 
 
-    # In[45]:
+    # In[134]:
 
 
     analysis = pd.DataFrame()
     count = 0
     i = 0
-    label = ""
+    #label = ""
     locationName = ""
     near = ''
     nearLocs = []
     counts = []
-    labels = []
+    #labels = []
     locationNames = []
     for x in range(0,len(fnames)):
         count = 0
@@ -628,43 +631,42 @@ def reportDoc(userid, doctorid):
             if(locName == row.nearestLoc):
                 if(row.anxietyLevel=='3'):
                     count+=1
-                    label = row.anxietyLevel
+                    #label = row.anxietyLevel
                     locationName = row.name
                     near = row.nearestLoc    
 
 
         i+=1           
         counts.append(count)
-        labels.append(label)
+        #labels.append(label)
         locationNames.append(locationName)
         nearLocs.append(near)
 
     analysis ['Location'] = locationNames
     analysis ['Frequency'] = counts
-    analysis ['Anxiety Level'] = labels
+    #analysis ['Anxiety Level'] = labels
     analysis ['Nearest Location'] = nearLocs
 
 
-    # In[46]:
+    # In[135]:
 
 
-    newA = analysis.drop(analysis[analysis['Frequency'] == 0].index, inplace= True)
+    newA = analysis.drop(analysis[analysis['Number of occurrences'] == 0].index, inplace= True)
 
 
-    # In[47]:
+    # In[136]:
 
 
     import six
     import arabic_reshaper
     from bidi.algorithm import get_display
-    import unicodedata
 
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.lib import colors
 
 
-    # In[48]:
+    # In[137]:
 
 
     def render_mpl_table(data, col_width=5.0, row_height=0.625, font_size=14,
@@ -698,7 +700,7 @@ def reportDoc(userid, doctorid):
         return ax
 
 
-    # In[49]:
+    # In[138]:
 
 
     if(len(analysis) > 0):
@@ -706,37 +708,43 @@ def reportDoc(userid, doctorid):
             analysis.loc[ind,'Nearest Location']=get_display(arabic_reshaper.reshape(analysis.loc[ind,'Nearest Location']))
 
 
-    # In[50]:
+    # In[139]:
 
 
     if(len(analysis) > 0):
-        render_mpl_table(analysis, header_columns=0, col_width=5)
-    
-    
-    # ## Improvements
-    
-    
-    
+        render_mpl_table(analysis, header_columns=0, col_width=4)
+
+
+    # # improvement
+
+    # In[153]:
+
+
     # get yesterday improvement 
     today_al = float("{:.2f}".format(plot_df['Anxiety'].mean()))
+
     improvement = -1
-    
+
+
+    # In[165]:
+
+
     try:
         ID = "Doctor"+userID
         doc_ref = db.collection(u'DoctorReports').document(ID)
         doc = doc_ref.get().to_dict()
         prev = float("{:.2f}".format(doc['anxiety_level']))
         # calculate the improvement
-        improvement= float("{:.2f}".format(((prev - today_al)/3)*100 ))     
+        improvement= float("{:.2f}".format(((prev - today_al)/3)*100 ))    
 
-    
     except:
         improvement = -1
-    
+
+
     # ## Generate doctor report pdf and store it in database
     # 
 
-    # In[51]:
+    # In[143]:
 
 
     pdf = canvas.Canvas('Doctor.pdf')
@@ -801,7 +809,7 @@ def reportDoc(userid, doctorid):
         pdf.drawString(290,260, "--")
 
     else:
-        pdf.drawString(280,260, improvement +'%')
+        pdf.drawString(280,260, str(improvement) +'%')
 
 
     pdf.showPage()
@@ -842,7 +850,7 @@ def reportDoc(userid, doctorid):
     pdf.setFont("Helvetica-Bold", 20)
     pdf.setFillColor(colors.HexColor('#808080'))
 
-    pdf.drawString(100,650, "Location Analysis")
+    pdf.drawString(100,650, "Locations With Highest Level of Anxiety")
 
     if(len(analysis) > 0):
         pdf.drawImage("Location.png", 30, 200, width=570,height=100)
@@ -874,22 +882,21 @@ def reportDoc(userid, doctorid):
     pdf.save()
 
 
-
-    # In[52]:
+    # In[144]:
 
 
     #new method
     doct = storage.child(userID+"/DoctorReport/doctorReport").put('Doctor.pdf')
 
 
-    # In[53]:
+    # In[145]:
 
 
     linkDF = pd.DataFrame()
     linkDF = linkDF.append(pd.DataFrame(doct,index=[0]),ignore_index=True)
 
 
-    # In[54]:
+    # In[146]:
 
 
     token1 = linkDF['downloadTokens'].values
@@ -897,40 +904,40 @@ def reportDoc(userid, doctorid):
     link = storage.child(userID+"/DoctorReport/doctorReport").get_url(token)
 
 
-    # In[55]:
+    # In[149]:
 
 
     from datetime import  datetime
 
 
-    # In[56]:
+    # In[150]:
 
 
     date = datetime.now()
 
 
-    
+    # In[161]:
 
 
-    # get before yesterday to calculate the improvement
-    
-    
+
+
+        #store the data
     ID = "Doctor"+userID
     doc_rec = db.collection(u'DoctorReports').document(str(ID))
     doc_rec.set({
-            u'doctorId': doctorID ,
-            u'emailsent':True,
-            u'patientId': userID,
-            u'reportTime': date,
-            u'reportUrl': link,
-            u'improvement': improvement,
-            u'anxiety_level': today_al
+        u'doctorId': doctorID ,
+        u'emailsent':True,
+        u'patientId': userID,
+        u'reportTime': date,
+        u'reportUrl': link,
+        u'improvement': improvement,
+        u'anxiety_level': today_al
 
         })
 
 
 
-    # In[59]:
+    # In[152]:
 
 
     os.remove("hr.png")
@@ -940,16 +947,12 @@ def reportDoc(userid, doctorid):
     os.remove("Doctor.pdf")
     if(len(analysis)>0):
         os.remove("Location.png")
-
-
-    # In[62]:
-
-
-    freqs = {
-        'Doctor': 'YAAAY'
-    }
-    return freqs
+        
+    return {"Doctor":"Yaaay"}
 
 
     # In[ ]:
+
+
+
 
