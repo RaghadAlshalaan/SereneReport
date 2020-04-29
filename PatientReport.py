@@ -361,6 +361,7 @@ def reportP(pid,dates , is_true):
     chronicD1 = docDf['chronicDiseases'].values
     smoke1 = docDf['smokeCigarettes'].values
     gad1 = docDf['GAD-7ScaleScore'].values
+    gender1 = docDf['gender'].values
 
     age = age1[0] 
     name = name1[0]
@@ -370,6 +371,7 @@ def reportP(pid,dates , is_true):
     chronicD = chronicD1[0]
     smoke = smoke1[0]
     gad = gad1[0]
+    gender = gender1[0]
 
 
     compareAge = int(age)
@@ -515,6 +517,7 @@ def reportP(pid,dates , is_true):
         c1 = '#9dd6f5'
         c2 = '#4ba0d1'
         c3 = '#23495f'
+        bar_width = 0.25
         for t, y in zip(plot_df["date"], plot_df["Anxiety"]):
 
             c=""
@@ -524,7 +527,7 @@ def reportP(pid,dates , is_true):
                 c = c2       
             elif ( y > 2): 
                 c = c3          
-            ax.plot([t,t], [0,y], color=c, marker="o",markevery=(1,2),linewidth=4,markeredgewidth=4)
+            plt.bar([t,t], [0,y],bar_width, color=c)
 
         colors = [[c1,c1],[c2,c2],[c3,c3]]          
         categories = ['Low','Meduim','High']
@@ -1161,6 +1164,8 @@ def reportP(pid,dates , is_true):
     pdf.drawString(150,460, "Monthly Income: " )
     pdf.drawString(150,440, "Chronic Diseases: " )
     pdf.drawString(150,420, "Cigarette Smoker: " ) 
+    pdf.drawString(150,410, "Gender: " ) 
+
 
     pdf.setFont("Helvetica", 15)
     pdf.setFillColor(black)
@@ -1171,6 +1176,8 @@ def reportP(pid,dates , is_true):
     pdf.drawString(290,460,  income)
     pdf.drawString(290,440, chronicD)
     pdf.drawString(290,420,  smoke) 
+    pdf.drawString(220,410,  gender) 
+
 
     pdf.setFillColor(colors.HexColor('#bfbfbf'))
     pdf.roundRect(370,560, 125,30,4,fill=1, stroke= 0)
@@ -1366,6 +1373,7 @@ def reportP(pid,dates , is_true):
     Mi =  translate (u'الدخل الشهري:')
     Cd =  translate (u'الأمراض المزمنة:')
     Cs =  translate (u'مدخن:')
+    ge =  translate (u'الجنس:')
 
 
     pdf.setFont("Arabic", 18)
@@ -1376,6 +1384,8 @@ def reportP(pid,dates , is_true):
     pdf.drawString(400,460, Mi )
     pdf.drawString(395,440, Cd)
     pdf.drawString(445,420, Cs ) 
+    pdf.drawString(446,410, ge ) 
+
 
     pdf.setFont("Arabic", 15)
     pdf.setFillColor(black)
@@ -1386,6 +1396,8 @@ def reportP(pid,dates , is_true):
     pdf.drawString(360,460,  income)
     pdf.drawString(360,440,  translate(from_en_to_ar(chronicD)))
     pdf.drawString(420,420,  translate(from_en_to_ar(smoke))) 
+    pdf.drawString(420,410,  translate(from_en_to_ar(gender))) 
+
 
     pdf.setFillColor(colors.HexColor('#bfbfbf'))
     pdf.roundRect(100,560, 120,30,4,fill=1, stroke= 0)
