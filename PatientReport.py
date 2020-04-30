@@ -61,7 +61,7 @@ def reportP(pid,dates , is_true):
 
 
     userID = pid
-    GoogleCalendar = True
+    GoogleCalendar = is_true
 
 
     # In[4]:
@@ -75,73 +75,38 @@ def reportP(pid,dates , is_true):
     # ## Get data from storage and get list of dates 
 
     # In[5]:
-
-
-
-    # ### Get Sleep
-
-    # In[6]:
-
-
+    df= pd.DataFrame()
     notAvailableDates = []
+    # loop through the storage and get the data
+    sleep =[]
+    for x in range(0 ,len(dates)):
+        #Sleep
+        blob = bucket.blob(userID+"/fitbitData/"+dates[x]+"/"+dates[x]+"-sleep.json")
+         #download the file 
+        u = blob.generate_signed_url(datetime.timedelta(seconds=300), method='GET')
+        try:
+            with urllib.request.urlopen(u) as url:
+                data = json.loads(url.read().decode())
+                sleepMinutes = data['summary']["totalMinutesAsleep"]
+        except:
+            notAvailableDates.append(dates[x])
+            pass
 
-    blob = bucket.blob(userID+"/lastGeneratedPatientReport/sleep.json")
-        # download the file 
-    u = blob.generate_signed_url(datetime.timedelta(seconds=300), method='GET')
-    with urllib.request.urlopen(u) as url:
-        data = json.loads(url.read().decode())
-        sleepMinutes = data['sleep']
-    sleepFile = pd.DataFrame(sleepMinutes)
+        #Activity (Steps)
+        blob = bucket.blob(userID+"/fitbitData/"+dates[x]+"/"+dates[x]+"-activity.json")
+        #download the file 
+        u = blob.generate_signed_url(datetime.timedelta(seconds=300), method='GET')
+        try:
+            with urllib.request.urlopen(u) as url:
+                data = json.loads(url.read().decode())
+                steps = data['summary']["steps"]
+        except:
+            notAvailableDates.append(dates[x])
+            pass
 
-
-    # In[7]:
-
-
-    if(len(sleepFile) > 0):
-        Testdate = ''
-        sleepMin = 0
-        sleep_df = pd.DataFrame()
-        sleepDate = []
-        sleepMinArray = []
-        for row in sleepFile.itertuples():
-            if row.dateOfSleep == Testdate:
-                sleepMin = row.minutesAsleep + sleepMin
-                sleepDate = sleepDate[:-1]
-                sleepMinArray = sleepMinArray[:-1]
-            else:
-                Testdate = row.dateOfSleep
-                sleepMin = row.minutesAsleep
-            sleepDate.append(Testdate)
-            sleepMinArray.append(sleepMin)
-        sleep_df ['date'] = sleepDate
-        sleep_df ['sleepMin'] = sleepMinArray
-
-
-    # ### Get Steps
-
-    # In[8]:
-
-
-    blob = bucket.blob(userID+"/lastGeneratedPatientReport/steps.json")
-        # download the file 
-    u = blob.generate_signed_url(datetime.timedelta(seconds=300), method='GET')
-    with urllib.request.urlopen(u) as url:
-        data = json.loads(url.read().decode())
-        steps = data['activities-steps']
-    stepsFile = pd.DataFrame(steps)
-    stepsFile = stepsFile.rename(columns={'value': 'TotalSteps'})
-
-
-    # ### Get HR
-
-    # In[9]:
-
-
-    hr_df = pd.DataFrame()
-    for x in range (0, len(dates)):
+        #heartrate
         blob = bucket.blob(userID+"/fitbitData/"+dates[x]+"/"+dates[x]+"-heartrate.json")
         u = blob.generate_signed_url(datetime.timedelta(seconds=300), method='GET')
-
         try:
             with urllib.request.urlopen(u) as url:
                 data = json.loads(url.read().decode())
@@ -152,40 +117,20 @@ def reportP(pid,dates , is_true):
             df_heartrate['hour'] = df_heartrate['time'].apply(lambda time: time.strftime('%H'))
             df_heartrate.drop(['time'],axis=1, inplace = True)
             heart_rate = df_heartrate.groupby(["hour"], as_index=False).mean()
-            #heart_rate['sleepMin'] = sleep_df [sleep_df.date == dates[x]].sleepMin
-            #heart_rate['TotalSteps'] = stepsFile [stepsFile.dateTime == dates[x]].value
+            heart_rate['sleepMin'] = sleepMinutes
+            heart_rate['TotalSteps'] = steps
             heart_rate['date'] = dates[x]
             heart_rate = heart_rate.astype({"hour": int})  
         except:
             notAvailableDates.append(dates[x])
             pass
-        hr_df = hr_df.append(heart_rate, ignore_index = True)
+
+         #append dataframe
+        df = df.append(heart_rate, ignore_index = True)
 
 
-    # ### Merge all three
-
-    # In[10]:
-
-
-    merged = pd.merge(left=hr_df, 
-                      right = sleep_df,
-                      how = 'left',
-                      left_on=['date'],
-                      right_on=['date']).ffill()
-
-
-    # In[11]:
-
-
-    df  = pd.merge(left=merged, 
-                      right = stepsFile,
-                      how = 'left',
-                      left_on=['date'],
-                      right_on=['dateTime']).ffill()
-
-
-    # In[15]:
-
+    
+    
 
     notAvailableDates
     notSyncedDates = pd.DataFrame()
@@ -238,32 +183,7 @@ def reportP(pid,dates , is_true):
     # In[20]:
 
 
-    ## only for testing purpose 
-    TestHigh = df
-    TestHigh = TestHigh.append({'hour' : 9 , 'value' : 103.6, 'date': '2020-04-21',
-                               'sleepMin' : 72, 'TotalSteps': 16806} , ignore_index=True)
-    TestHigh = TestHigh.append({'hour' : 10 , 'value' : 97.4, 'date': '2020-04-21',
-                               'sleepMin' : 72, 'TotalSteps': 16806} , ignore_index=True)
-    TestHigh = TestHigh.append({'hour' : 11 , 'value' : 94.2, 'date': '2020-04-21',
-                               'sleepMin' : 63, 'TotalSteps': 9910} , ignore_index=True)
-    TestHigh = TestHigh.append({'hour' : 12 , 'value' : 96.4, 'date': '2020-04-21',
-                               'sleepMin' : 63, 'TotalSteps': 9910} , ignore_index=True)
-    TestHigh = TestHigh.append({'hour' : 13 , 'value' : 108.9, 'date': '2020-04-21',
-                               'sleepMin' : 69, 'TotalSteps': 12084} , ignore_index=True)
-
-
-    # In[21]:
-
-
-    testFinal = pd.merge(left=TestHigh, 
-                      right = loc_df,
-                      how = 'left',
-                      left_on=['hour','date'],
-                      right_on=['hour','date']).ffill()
-
-
-    # In[22]:
-
+  
 
     dfinal = pd.merge(left=df, 
                       right = loc_df,
@@ -512,7 +432,7 @@ def reportP(pid,dates , is_true):
 
 
     # Plot AL
-    if(len(plot_df)<15):
+    if(len(plot_df)<=15):
         fig, ax = plt.subplots()
         c1 = '#9dd6f5'
         c2 = '#4ba0d1'
@@ -527,7 +447,7 @@ def reportP(pid,dates , is_true):
                 c = c2       
             elif ( y > 2): 
                 c = c3          
-            plt.bar([t,t], [0,y],bar_width, color=c)
+            plt.bar([t,t], [0,y], bar_width,color=c )
 
         colors = [[c1,c1],[c2,c2],[c3,c3]]          
         categories = ['Low','Meduim','High']
@@ -573,6 +493,7 @@ def reportP(pid,dates , is_true):
             c1 = '#9dd6f5'
             c2 = '#4ba0d1'
             c3 = '#23495f'
+            bar_width = 0.25
             for t, y in zip(dfarray[x]["date"], dfarray[x]["Anxiety"]):
 
                 c=""
@@ -582,8 +503,7 @@ def reportP(pid,dates , is_true):
                     c = c2       
                 elif ( y > 2): 
                     c = c3          
-                ax.plot([t,t], [0,y], color=c, marker="o",markevery=(1,2),linewidth=4,markeredgewidth=4)
-
+                plt.bar([t,t], [0,y], bar_width,color=c )
             colors = [[c1,c1],[c2,c2],[c3,c3]]          
             categories = ['Low','Meduim','High']
 
@@ -627,7 +547,7 @@ def reportP(pid,dates , is_true):
     # In[39]:
 
 
-    if (len(plot_df)<15):
+    if (len(plot_df)<=15):
         linkDF = pd.DataFrame()
         linkDF = linkDF.append(pd.DataFrame(link,index=[0]),ignore_index=True)
         token1 = linkDF['downloadTokens'].values
@@ -684,6 +604,7 @@ def reportP(pid,dates , is_true):
     c1 = '#9dd6f5'
     c2 = '#4ba0d1'
     c3 = '#23495f'
+    bar_width = 0.25
     for t, y in zip(plot_df["date"], plot_df["Anxiety"]):
 
         c=""
@@ -693,7 +614,7 @@ def reportP(pid,dates , is_true):
             c = c2       
         elif ( y > 2): 
             c = c3          
-        ax.plot([t,t], [0,y], color=c, marker="o",markevery=(1,2),linewidth=4,markeredgewidth=4)
+        plt.bar([t,t], [0,y], bar_width,color=c )
 
     colors = [[c1,c1],[c2,c2],[c3,c3]]          
     categories = ['Low','Meduim','High']
@@ -925,9 +846,9 @@ def reportP(pid,dates , is_true):
 
 
     if(len(analysis_EN) > 0):
-        render_mpl_table(analysis_EN, header_columns=0, col_width=5, tran ='Location-EN')
+        render_mpl_table(analysis_EN, header_columns=0, col_width=6, tran ='Location-EN')
     if(len(analysis_AR) > 0):
-        render_mpl_table(analysis_AR, header_columns=0, col_width=5, tran ='Location-AR')
+        render_mpl_table(analysis_AR, header_columns=0, col_width=6, tran ='Location-AR')
 
 
     # # Events with highest level of anxiety
@@ -958,152 +879,153 @@ def reportP(pid,dates , is_true):
     # In[61]:
 
 
-    if len(events_df) > 0:
-       newDates = []
-       for row in events_df.itertuples():
-           newDate = parse(row.date)
-           newDates.append(newDate)
-       events_df['newDate'] = newDates
+        if len(events_df) > 0:
+            newDates = []
+            for row in events_df.itertuples():
+                newDate = parse(row.date)
+                newDates.append(newDate)
+            events_df['newDate'] = newDates
 
-       events_df = events_df.rename(columns={'name': 'eventName'})
-       events_df.newDate.apply(str)
-       events_df['date'] = pd.to_datetime(events_df['newDate'], format='%Y:%M:%D').dt.date
-       events_df['hour'] = events_df['newDate'].apply(lambda time: time.strftime('%H'))
-       events_df.hour = events_df.hour.astype(int) 
-       events_df.date = events_df.date.astype(str)
+            events_df = events_df.rename(columns={'name': 'eventName'})
+            events_df.newDate.apply(str)
+            events_df['date'] = pd.to_datetime(events_df['newDate'], format='%Y:%M:%D').dt.date
+            events_df['hour'] = events_df['newDate'].apply(lambda time: time.strftime('%H'))
+            events_df.hour = events_df.hour.astype(int) 
+            events_df.date = events_df.date.astype(str)
 
-       Test = Labeled_df
+        Test = Labeled_df
 
-       merge_df = pd.merge(left=Test, 
-                         right = events_df,
-                         how = 'left',
-                         left_on=['hour','date'],
-                         right_on=['hour','date']).ffill()
+        merge_df = pd.merge(left=Test, 
+                          right = events_df,
+                          how = 'left',
+                          left_on=['hour','date'],
+                          right_on=['hour','date']).ffill()
 
-       merge_df['eventName'].fillna("Not given", inplace=True)
-       merge_df= merge_df[merge_df.eventName != 'Not given']
+        merge_df['eventName'].fillna("Not given", inplace=True)
+        merge_df= merge_df[merge_df.eventName != 'Not given']
+        
+        #finalEvents_EN = pd.DataFrame()
+        #finalEvents_AR = pd.DataFrame()
+        ev_name=''
+        evNames = []
+        #evLabels = []
+        evDate = []
+        for row in merge_df.itertuples():
+            if row.eventName != ev_name:
+                if row.Label == 'High':
+                    ev_name = row.eventName
+                    #ev_label = row.Label
+                    ev_date = row.date
+            if(ev_name != ''):
+                evNames.append(ev_name)
+                #evLabels.append(ev_label)
+                evDate.append(ev_date)
 
-       #finalEvents_EN = pd.DataFrame()
-       #finalEvents_AR = pd.DataFrame()
-       ev_name=''
-       evNames = []
-       #evLabels = []
-       evDate = []
-       for row in merge_df.itertuples():
-           if row.eventName != ev_name:
-               if row.Label == 'High':
-                   ev_name = row.eventName
-                   #ev_label = row.Label
-                   ev_date = row.date
-           if(ev_name != ''):
-               evNames.append(ev_name)
-               #evLabels.append(ev_label)
-               evDate.append(ev_date)
+        finalEvents_EN ['Event Name'] = evNames
+        #finalEvents_EN['Anxiety Level'] = evLabels
+        finalEvents_EN['Date'] = evDate
 
-       finalEvents_EN ['Event Name'] = evNames
-       #finalEvents_EN['Anxiety Level'] = evLabels
-       finalEvents_EN['Date'] = evDate
+        finalEvents_AR ['اسم الحدث'] = evNames
+        #finalEvents_AR['مستوى القلق'] = evLabels
+        finalEvents_AR['تاريخ الحدث'] = evDate
+        
+        finalEvents_EN = finalEvents_EN.drop_duplicates()
+        finalEvents_AR = finalEvents_AR.drop_duplicates()
+        
+        Final_duplicated = pd.DataFrame()
+        eventId = ''
+        eventIds = []
+        event_Labels = []
+        event_names = []
+        hours = []
+        for row in merge_df.itertuples():
+            if eventId != row.idEvent:
+                eventId = row.idEvent
+            if eventId != '':
+                eventIds.append(eventId)
+                event_Labels.append(row.Label)
+                event_names.append(row.eventName)
+                hours.append(row.hour)
+        Final_duplicated ['id'] = eventIds
+        Final_duplicated ['Label'] = event_Labels
+        Final_duplicated ['name'] = event_names
+        Final_duplicated ['hour'] = hours
+        Final_duplicated = Final_duplicated.drop_duplicates(subset ='id')
+        
+        
+        # Update firebase with the user anxiety level 
+        for row in Final_duplicated.itertuples():
+            if row.Label == 'High':
+                doc_ref = db.collection(u'PatientEvents').document(row.id)
+                doc_ref.update({
+                                            u'anxietyLevel':'3'
+                                    })
+            else:
+                doc_ref = db.collection(u'PatientEvents').document(row.id)
+                doc_ref.delete()
+        checkEvents_df = pd.DataFrame()
+        cEventsID = []
+        checkEvents = db.collection(u'PatientEvents').where(u'patientID', u'==', userID ).stream()
 
-       finalEvents_AR ['اسم الحدث'] = evNames
-       #finalEvents_AR['مستوى القلق'] = evLabels
-       finalEvents_AR['تاريخ الحدث'] = evDate
+        for event in checkEvents:
+            cEv = event.to_dict()
+            cEventsID.append(event.id)
+            checkEvents_df = checkEvents_df.append(pd.DataFrame(cEv,index=[0]),ignore_index=True)     
+        checkEvents_df['id'] = cEventsID
+        checkEvents_df.fillna("Not given", inplace=True)
+        
+        
+        
+        if len(checkEvents_df) > 0:
+            checkEvents_df = checkEvents_df[checkEvents_df.anxietyLevel == 'Not given']
+            for row in checkEvents_df.itertuples():
+                doc_ref = db.collection(u'PatientEvents').document(row.id)
+                doc_ref.delete()
 
-       finalEvents_EN = finalEvents_EN.drop_duplicates()
-       finalEvents_AR = finalEvents_AR.drop_duplicates()
-
-       Final_duplicated = pd.DataFrame()
-       eventID = ''
-       eventIDs = []
-       event_Labels = []
-       event_names = []
-       hours = []
-       for row in merge_df.itertuples():
-           if eventID != row.idEvent:
-               eventID = row.idEvent
-           if eventID != '':
-               eventIDs.append(eventID)
-               event_Labels.append(row.Label)
-               event_names.append(row.eventName)
-               hours.append(row.hour)
-       Final_duplicated ['id'] = eventIDs
-       Final_duplicated ['Label'] = event_Labels
-       Final_duplicated ['name'] = event_names
-       Final_duplicated ['hour'] = hours
-       Final_duplicated = Final_duplicated.drop_duplicates(subset ='id')
-
-
-       # Update firebase with the user anxiety level 
-       for row in Final_duplicated.itertuples():
-           if row.Label == 'High':
-               doc_ref = db.collection(u'PatientEvents').document(row.id)
-               doc_ref.update({
-                                           u'anxietyLevel':'3'
-                                   })
-           else:
-               doc_ref = db.collection(u'PatientEvents').document(row.id)
-               doc_ref.delete()
-       checkEvents_df = pd.DataFrame()
-       cEventsID = []
-       checkEvents = db.collection(u'PatientEvents').where(u'patientID', u'==', userID ).stream()
-
-       for event in checkEvents:
-           cEv = event.to_dict()
-           cEventsID.append(event.id)
-           checkEvents_df = checkEvents_df.append(pd.DataFrame(cEv,index=[0]),ignore_index=True)     
-       checkEvents_df['id'] = cEventsID
-       checkEvents_df.fillna("Not given", inplace=True)
-
-
-
-       if len(checkEvents_df) > 0:
-           checkEvents_df = checkEvents_df[checkEvents_df.anxietyLevel == 'Not given']
-           for row in checkEvents_df.itertuples():
-               doc_ref = db.collection(u'PatientEvents').document(row.id)
-               doc_ref.delete()
 
 
     # In[62]:
 
 
-    if(len(finalEvents_EN) > 0):
-        finalEvents_EN = finalEvents_EN.drop_duplicates()
-        finalEvents_AR = finalEvents_AR.drop_duplicates()
+        if(len(finalEvents_EN) > 0):
+            finalEvents_EN = finalEvents_EN.drop_duplicates()
+            finalEvents_AR = finalEvents_AR.drop_duplicates()
 
 
 
     # In[63]:
 
 
-    if(len(finalEvents_EN) > 0):
-        for ind,row in finalEvents_EN.iterrows():
-            try:
-                finalEvents_EN.loc[ind,'Event Name']=get_display(arabic_reshaper.reshape(
-                   finalEvents_EN.loc[ind,'Event Name']))
-            except:
-                pass
+        if(len(finalEvents_EN) > 0):
+            for ind,row in finalEvents_EN.iterrows():
+                try:
+                    finalEvents_EN.loc[ind,'Event Name']=get_display(arabic_reshaper.reshape(
+                       finalEvents_EN.loc[ind,'Event Name']))
+                except:
+                    pass
 
-    if(len(finalEvents_AR) > 0):
-        #finalEvents_AR['مستوى القلق'] = 'مرتفع'
-        for ind,row in finalEvents_AR.iterrows():
-            try:
-                finalEvents_AR.loc[ind,'اسم الحدث']=get_display(arabic_reshaper.reshape(finalEvents_AR.loc[ind,'اسم الحدث']))
-                #finalEvents_AR.loc[ind,'مستوى القلق']=get_display(arabic_reshaper.reshape(finalEvents_AR.loc[ind,'مستوى القلق']))
-            except:
-                pass
-        finalEvents_AR = finalEvents_AR.rename(columns={'اسم الحدث': get_display(arabic_reshaper.reshape('اسم الحدث')) })
-        #finalEvents_AR = finalEvents_AR.rename(columns={'مستوى القلق': get_display(arabic_reshaper.reshape('مستوى القلق')) })
-        finalEvents_AR = finalEvents_AR.rename(columns={'تاريخ الحدث': get_display(arabic_reshaper.reshape('تاريخ الحدث')) })
-
-
+        if(len(finalEvents_AR) > 0):
+            #finalEvents_AR['مستوى القلق'] = 'مرتفع'
+            for ind,row in finalEvents_AR.iterrows():
+                try:
+                    finalEvents_AR.loc[ind,'اسم الحدث']=get_display(arabic_reshaper.reshape(finalEvents_AR.loc[ind,'اسم الحدث']))
+                    #finalEvents_AR.loc[ind,'مستوى القلق']=get_display(arabic_reshaper.reshape(finalEvents_AR.loc[ind,'مستوى القلق']))
+                except:
+                    pass
+            finalEvents_AR = finalEvents_AR.rename(columns={'اسم الحدث': get_display(arabic_reshaper.reshape('اسم الحدث')) })
+            #finalEvents_AR = finalEvents_AR.rename(columns={'مستوى القلق': get_display(arabic_reshaper.reshape('مستوى القلق')) })
+            finalEvents_AR = finalEvents_AR.rename(columns={'تاريخ الحدث': get_display(arabic_reshaper.reshape('تاريخ الحدث')) })
 
 
-    # In[64]:
 
 
-    if(len(finalEvents_EN) > 0):
-        render_mpl_table(finalEvents_EN, header_columns=0, col_width=4, tran ='Events-EN')
-    if(len(finalEvents_AR) > 0):
-        render_mpl_table(finalEvents_AR, header_columns=0, col_width=4, tran ='Events-AR')
+        # In[64]:
+
+
+        if(len(finalEvents_EN) > 0):
+            render_mpl_table(finalEvents_EN, header_columns=0, col_width=4, tran ='Events-EN')
+        if(len(finalEvents_AR) > 0):
+            render_mpl_table(finalEvents_AR, header_columns=0, col_width=4, tran ='Events-AR')
 
 
     # In[ ]:
@@ -1157,25 +1079,24 @@ def reportP(pid,dates , is_true):
     pdf.drawString(100,570, "Patient Information")
 
     pdf.setFont("Helvetica-Bold", 15)
-    pdf.drawString(150,540, "Name: " )
-    pdf.drawString(150,520, "Age: " )
-    pdf.drawString(150,500, "Employment Status: " )
-    pdf.drawString(150,480, "Martial Status: " )
-    pdf.drawString(150,460, "Monthly Income: " )
-    pdf.drawString(150,440, "Chronic Diseases: " )
-    pdf.drawString(150,420, "Cigarette Smoker: " ) 
-    pdf.drawString(150,410, "Gender: " ) 
-
+    pdf.drawString(150,550, "Name: " )
+    pdf.drawString(150,530, "Age: " )
+    pdf.drawString(150,510, "Employment Status: " )
+    pdf.drawString(150,490, "Martial Status: " )
+    pdf.drawString(150,470, "Monthly Income: " )
+    pdf.drawString(150,450, "Chronic Diseases: " )
+    pdf.drawString(150,430, "Cigarette Smoker: " ) 
+    pdf.drawString(150,410, "Gender: " )
 
     pdf.setFont("Helvetica", 15)
     pdf.setFillColor(black)
-    pdf.drawString(210,540,  name)
-    pdf.drawString(210,520,  age)
-    pdf.drawString(310,500,  emp)
-    pdf.drawString(260,480,  mar)
-    pdf.drawString(290,460,  income)
-    pdf.drawString(290,440, chronicD)
-    pdf.drawString(290,420,  smoke) 
+    pdf.drawString(210,550,  name)
+    pdf.drawString(210,530,  age)
+    pdf.drawString(310,510,  emp)
+    pdf.drawString(260,490,  mar)
+    pdf.drawString(290,470,  income)
+    pdf.drawString(290,450, chronicD)
+    pdf.drawString(290,430,  smoke)
     pdf.drawString(220,410,  gender) 
 
 
@@ -1277,9 +1198,9 @@ def reportP(pid,dates , is_true):
     pdf.setFillColor(colors.HexColor('#808080'))
     pdf.drawString(100,650, "Events With Highest Level of Anxiety")
 
-    if(len(finalEvents_EN)>0):
+    if(GoogleCalendar == True and len(finalEvents_EN)>0):
         pdf.drawImage("Events-EN.png", 30, 500, width=550,height=100)
-    elif (len(finalEvents_EN)<0 and GoogleCalendar == True):
+    elif (GoogleCalendar == True and len(finalEvents_EN)<0  ):
         pdf.setFont("Helvetica", 15)
         pdf.setFillColor(colors.HexColor('#23495f'))
 
@@ -1313,7 +1234,6 @@ def reportP(pid,dates , is_true):
             i = i-20
 
     pdf.save()
-
 
     # In[68]:
 
@@ -1373,29 +1293,28 @@ def reportP(pid,dates , is_true):
     Mi =  translate (u'الدخل الشهري:')
     Cd =  translate (u'الأمراض المزمنة:')
     Cs =  translate (u'مدخن:')
-    ge =  translate (u'الجنس:')
-
+    ge = translate (u'الجنس:')
 
     pdf.setFont("Arabic", 18)
-    pdf.drawString(445,540, na )
-    pdf.drawString(446,520, ag)
-    pdf.drawString(400,500, Es )
-    pdf.drawString(390,480, Ms)
-    pdf.drawString(400,460, Mi )
-    pdf.drawString(395,440, Cd)
-    pdf.drawString(445,420, Cs ) 
+    pdf.drawString(445,550, na )
+    pdf.drawString(446,530, ag)
+    pdf.drawString(400,510, Es )
+    pdf.drawString(390,490, Ms)
+    pdf.drawString(400,470, Mi )
+    pdf.drawString(395,450, Cd)
+    pdf.drawString(445,430, Cs ) 
     pdf.drawString(446,410, ge ) 
 
 
     pdf.setFont("Arabic", 15)
     pdf.setFillColor(black)
-    pdf.drawString(400,540,  name)
-    pdf.drawString(420,520,  age)
-    pdf.drawString(350,500,  translate(from_en_to_ar(emp)))
-    pdf.drawString(355,480,  translate(from_en_to_ar(mar)))
-    pdf.drawString(360,460,  income)
-    pdf.drawString(360,440,  translate(from_en_to_ar(chronicD)))
-    pdf.drawString(420,420,  translate(from_en_to_ar(smoke))) 
+    pdf.drawString(400,550,  name)
+    pdf.drawString(420,530,  age)
+    pdf.drawString(350,510,  translate(from_en_to_ar(emp)))
+    pdf.drawString(355,490,  translate(from_en_to_ar(mar)))
+    pdf.drawString(360,470,  income)
+    pdf.drawString(360,450,  translate(from_en_to_ar(chronicD)))
+    pdf.drawString(420,430,  translate(from_en_to_ar(smoke))) 
     pdf.drawString(420,410,  translate(from_en_to_ar(gender))) 
 
 
@@ -1475,11 +1394,11 @@ def reportP(pid,dates , is_true):
 
     pdf.drawString(400,650, AL)
 
-    loc = translate (u' تحليل المواقع ذات مستوى قلق مرتفع')
+    loc = translate (u'تحليل المواقع ذات مستوى قلق مرتفع ')
 
     pdf.drawImage("ALpdf.png", 57, 400, width=485,height=200)
-    pdf.drawString(390,320, loc)
-    if(len(analysis_AR) < 0):
+    pdf.drawString(210,320, loc)
+    if(len(analysis_AR) > 0):
         pdf.drawImage("Location-AR.png", 10, 200, width=570,height=100)
     else:
         pdf.setFont("Arabic", 18)
@@ -1496,13 +1415,13 @@ def reportP(pid,dates , is_true):
 
     pdf.setFont("Arabic", 28)
     pdf.setFillColor(colors.HexColor('#808080'))
-    EV = translate(u'تحليلات الأحداث ذات مستوى قلق مرتفع')
-    pdf.drawString(380,650, EV)
+    EV = translate(u'تحليل الأحداث ذات مستوى قلق مرتفع ')
+    pdf.drawString(200,650, EV)
 
 
-    if(len(finalEvents_AR)>0):
+    if(GoogleCalendar ==True and len(finalEvents_AR)>0):
         pdf.drawImage("Events-AR.png", 20, 500, width=550,height=100)
-    elif (len(finalEvents_EN)<0 and GoogleCalendar == True):
+    elif (GoogleCalendar == True and len(finalEvents_EN)<0):
         pdf.setFont("Arabic", 18)
         pdf.setFillColor(colors.HexColor('#23495f'))
 
@@ -1513,7 +1432,7 @@ def reportP(pid,dates , is_true):
         pdf.setFillColor(colors.HexColor('#23495f'))
 
         text = translate (u'المستخدم لم يقم بمزامنة أحداث تقويم قوقل بحساب سيرين.')
-        pdf.drawString(200,550, text)
+        pdf.drawString(210,550, text)
 
     if(len(notSyncedDates) != 0):  
         pdf.setFont("Arabic", 15)
@@ -1548,7 +1467,7 @@ def reportP(pid,dates , is_true):
     else:
         for x in range(0,len(dfarray)):
             os.remove('AL'+str(x)+'pdf.png')
-    if(len(finalEvents_AR) > 0 ):
+    if(GoogleCalendar ==True and len(finalEvents_AR) > 0 ):
         os.remove('Events-AR.png')
         os.remove('Events-EN.png')
     if(len(analysis_AR)>0):

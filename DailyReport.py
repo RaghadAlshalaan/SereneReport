@@ -301,6 +301,7 @@ def reportD(pid):
     c1 = '#9dd6f5'
     c2 = '#4ba0d1'
     c3 = '#23495f'
+    bar_width = 0.25
     for t, y in zip(plot_df["day"], plot_df["Anxiety"]):
 
         c=""
@@ -310,7 +311,7 @@ def reportD(pid):
             c = c2       
         elif ( y > 2): 
             c = c3          
-        ax.plot([t,t], [0,y], color=c, marker="o",markevery=(1,2),linewidth=4,markeredgewidth=4)
+        plt.bar([t,t], [0,y],bar_width, color=c)
 
     colors = [[c1,c1],[c2,c2],[c3,c3]]          
     categories = ['Low','Meduim','High']
