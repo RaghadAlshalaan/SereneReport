@@ -7,6 +7,7 @@ def reportD(pid):
     from firebase_admin import firestore
     from firebase_admin import storage
     import pyrebase
+    import math
 
     from datetime import date, timedelta
     import urllib.request, json 
@@ -369,24 +370,29 @@ def reportD(pid):
     #timestamp = yesterday.strftime("%Y-%m-%d")
     al = float(plot_df[plot_df.date == timestamp].Anxiety)
     today_al = float("{:.2f}".format(al))
-
+    yesterday = plot_df.iloc[5]['Anxiety']
+    today = plot_df.iloc[6]['Anxiety']
+    imp = ((yesterday - today)/3)*100
 
 
     # get before yesterday to calculate the improvement
     try:
-        doc_ref = db.collection(u'DailyReport').document('daily'+"userID")
+        doc_ref = db.collection(u'DailyReport').document('daily'+userID)
         doc = doc_ref.get().to_dict()
-        prev = float("{:.2f}".format(math.ceil(doc['anxiety_level'])))
+        prev = float(doc['anxiety_level'])
         # calculate the improvement
         #1. get today Al
-        improvement= float("{:.2f}".format(((prev - today_al)/3)*100 ))  
+        improvement= ((prev - today_al)/3)*100 
         doc_rec = db.collection(u'DailyReport').document('daily'+userID)
         doc_rec.set({
 
             u'AL_graph': AlLink,
-            u'improvement': improvement ,
+            u'improvement': float(improvement),
             u'anxiety_level' : float(today_al)   
         })
+        
+        yesterday = plot_df.iloc[6]['Anxiety']
+        today = plot_df.iloc[5]['Anxiety']
 
     except:
         doc_rec = db.collection(u'DailyReport').document('daily'+userID)
