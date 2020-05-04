@@ -387,7 +387,7 @@ def reportD(pid):
         doc_rec.set({
 
             u'AL_graph': AlLink,
-            u'improvement': float(improvement),
+            u'improvement': float("{:.2f}".format(improvement)),#float("{:.2f}".format(improvement))   
             u'anxiety_level' : float(today_al)   
         })
         

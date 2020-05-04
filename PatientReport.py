@@ -862,7 +862,7 @@ def reportP(pid,dates , is_true):
     # In[60]:
 
 
-    if GoogleCalendar == True:
+    if GoogleCalendar == 'true':
         events_df = pd.DataFrame()
         finalEvents_EN = pd.DataFrame()
         finalEvents_AR = pd.DataFrame()
@@ -893,139 +893,135 @@ def reportP(pid,dates , is_true):
             events_df.hour = events_df.hour.astype(int) 
             events_df.date = events_df.date.astype(str)
 
-        Test = Labeled_df
+            Test = Labeled_df
 
-        merge_df = pd.merge(left=Test, 
-                          right = events_df,
-                          how = 'left',
-                          left_on=['hour','date'],
-                          right_on=['hour','date']).ffill()
+            merge_df = pd.merge(left=Test,right = events_df, how = 'left',left_on=['hour','date'],right_on=['hour','date']).ffill()
 
-        merge_df['eventName'].fillna("Not given", inplace=True)
-        merge_df= merge_df[merge_df.eventName != 'Not given']
+            merge_df['eventName'].fillna("Not given", inplace=True)
+            merge_df= merge_df[merge_df.eventName != 'Not given']
         
-        #finalEvents_EN = pd.DataFrame()
-        #finalEvents_AR = pd.DataFrame()
-        ev_name=''
-        evNames = []
-        #evLabels = []
-        evDate = []
-        for row in merge_df.itertuples():
-            if row.eventName != ev_name:
-                if row.Label == 'High':
-                    ev_name = row.eventName
-                    #ev_label = row.Label
-                    ev_date = row.date
-            if(ev_name != ''):
-                evNames.append(ev_name)
-                #evLabels.append(ev_label)
-                evDate.append(ev_date)
+            #finalEvents_EN = pd.DataFrame()
+            #finalEvents_AR = pd.DataFrame()
+            ev_name=''
+            evNames = []
+            #evLabels = []
+            evDate = []
+            for row in merge_df.itertuples():
+                if row.eventName != ev_name:
+                    if row.Label == 'High':
+                        ev_name = row.eventName
+                        #ev_label = row.Label
+                        ev_date = row.date
+                if(ev_name != ''):
+                    evNames.append(ev_name)
+                    #evLabels.append(ev_label)
+                    evDate.append(ev_date)
 
-        finalEvents_EN ['Event Name'] = evNames
-        #finalEvents_EN['Anxiety Level'] = evLabels
-        finalEvents_EN['Date'] = evDate
+            finalEvents_EN ['Event Name'] = evNames
+            #finalEvents_EN['Anxiety Level'] = evLabels
+            finalEvents_EN['Date'] = evDate
 
-        finalEvents_AR ['اسم الحدث'] = evNames
-        #finalEvents_AR['مستوى القلق'] = evLabels
-        finalEvents_AR['تاريخ الحدث'] = evDate
-        
-        finalEvents_EN = finalEvents_EN.drop_duplicates()
-        finalEvents_AR = finalEvents_AR.drop_duplicates()
-        
-        Final_duplicated = pd.DataFrame()
-        eventId = ''
-        eventIds = []
-        event_Labels = []
-        event_names = []
-        hours = []
-        for row in merge_df.itertuples():
-            if eventId != row.idEvent:
-                eventId = row.idEvent
-            if eventId != '':
-                eventIds.append(eventId)
-                event_Labels.append(row.Label)
-                event_names.append(row.eventName)
-                hours.append(row.hour)
-        Final_duplicated ['id'] = eventIds
-        Final_duplicated ['Label'] = event_Labels
-        Final_duplicated ['name'] = event_names
-        Final_duplicated ['hour'] = hours
-        Final_duplicated = Final_duplicated.drop_duplicates(subset ='id')
-        
-        
-        # Update firebase with the user anxiety level 
-        for row in Final_duplicated.itertuples():
-            if row.Label == 'High':
-                doc_ref = db.collection(u'PatientEvents').document(row.id)
-                doc_ref.update({
-                                            u'anxietyLevel':'3'
-                                    })
-            else:
-                doc_ref = db.collection(u'PatientEvents').document(row.id)
-                doc_ref.delete()
-        checkEvents_df = pd.DataFrame()
-        cEventsID = []
-        checkEvents = db.collection(u'PatientEvents').where(u'patientID', u'==', userID ).stream()
+            finalEvents_AR ['اسم الحدث'] = evNames
+            #finalEvents_AR['مستوى القلق'] = evLabels
+            finalEvents_AR['تاريخ الحدث'] = evDate
 
-        for event in checkEvents:
-            cEv = event.to_dict()
-            cEventsID.append(event.id)
-            checkEvents_df = checkEvents_df.append(pd.DataFrame(cEv,index=[0]),ignore_index=True)     
-        checkEvents_df['id'] = cEventsID
-        checkEvents_df.fillna("Not given", inplace=True)
-        
-        
-        
-        if len(checkEvents_df) > 0:
-            checkEvents_df = checkEvents_df[checkEvents_df.anxietyLevel == 'Not given']
-            for row in checkEvents_df.itertuples():
-                doc_ref = db.collection(u'PatientEvents').document(row.id)
-                doc_ref.delete()
-
-
-
-    # In[62]:
-
-
-        if(len(finalEvents_EN) > 0):
             finalEvents_EN = finalEvents_EN.drop_duplicates()
             finalEvents_AR = finalEvents_AR.drop_duplicates()
 
+            Final_duplicated = pd.DataFrame()
+            eventId = ''
+            eventIds = []
+            event_Labels = []
+            event_names = []
+            hours = []
+            for row in merge_df.itertuples():
+                if eventId != row.idEvent:
+                    eventId = row.idEvent
+                if eventId != '':
+                    eventIds.append(eventId)
+                    event_Labels.append(row.Label)
+                    event_names.append(row.eventName)
+                    hours.append(row.hour)
+            Final_duplicated ['id'] = eventIds
+            Final_duplicated ['Label'] = event_Labels
+            Final_duplicated ['name'] = event_names
+            Final_duplicated ['hour'] = hours
+            Final_duplicated = Final_duplicated.drop_duplicates(subset ='id')
 
 
-    # In[63]:
+            # Update firebase with the user anxiety level 
+            for row in Final_duplicated.itertuples():
+                if row.Label == 'High':
+                    doc_ref = db.collection(u'PatientEvents').document(row.id)
+                    doc_ref.update({
+                                                u'anxietyLevel':'3'
+                                        })
+                else:
+                    doc_ref = db.collection(u'PatientEvents').document(row.id)
+                    doc_ref.delete()
+            checkEvents_df = pd.DataFrame()
+            cEventsID = []
+            checkEvents = db.collection(u'PatientEvents').where(u'patientID', u'==', userID ).stream()
 
-
-        if(len(finalEvents_EN) > 0):
-            for ind,row in finalEvents_EN.iterrows():
-                try:
-                    finalEvents_EN.loc[ind,'Event Name']=get_display(arabic_reshaper.reshape(
-                       finalEvents_EN.loc[ind,'Event Name']))
-                except:
-                    pass
-
-        if(len(finalEvents_AR) > 0):
-            #finalEvents_AR['مستوى القلق'] = 'مرتفع'
-            for ind,row in finalEvents_AR.iterrows():
-                try:
-                    finalEvents_AR.loc[ind,'اسم الحدث']=get_display(arabic_reshaper.reshape(finalEvents_AR.loc[ind,'اسم الحدث']))
-                    #finalEvents_AR.loc[ind,'مستوى القلق']=get_display(arabic_reshaper.reshape(finalEvents_AR.loc[ind,'مستوى القلق']))
-                except:
-                    pass
-            finalEvents_AR = finalEvents_AR.rename(columns={'اسم الحدث': get_display(arabic_reshaper.reshape('اسم الحدث')) })
-            #finalEvents_AR = finalEvents_AR.rename(columns={'مستوى القلق': get_display(arabic_reshaper.reshape('مستوى القلق')) })
-            finalEvents_AR = finalEvents_AR.rename(columns={'تاريخ الحدث': get_display(arabic_reshaper.reshape('تاريخ الحدث')) })
-
+            for event in checkEvents:
+                cEv = event.to_dict()
+                cEventsID.append(event.id)
+                checkEvents_df = checkEvents_df.append(pd.DataFrame(cEv,index=[0]),ignore_index=True)     
+            checkEvents_df['id'] = cEventsID
+            checkEvents_df.fillna("Not given", inplace=True)
 
 
 
-        # In[64]:
+            if len(checkEvents_df) > 0:
+                checkEvents_df = checkEvents_df[checkEvents_df.anxietyLevel == 'Not given']
+                for row in checkEvents_df.itertuples():
+                    doc_ref = db.collection(u'PatientEvents').document(row.id)
+                    doc_ref.delete()
 
 
-        if(len(finalEvents_EN) > 0):
-            render_mpl_table(finalEvents_EN, header_columns=0, col_width=4, tran ='Events-EN')
-        if(len(finalEvents_AR) > 0):
-            render_mpl_table(finalEvents_AR, header_columns=0, col_width=4, tran ='Events-AR')
+
+        # In[62]:
+
+
+            if(len(finalEvents_EN) > 0):
+                finalEvents_EN = finalEvents_EN.drop_duplicates()
+                finalEvents_AR = finalEvents_AR.drop_duplicates()
+
+
+
+        # In[63]:
+
+
+            if(len(finalEvents_EN) > 0):
+                for ind,row in finalEvents_EN.iterrows():
+                    try:
+                        finalEvents_EN.loc[ind,'Event Name']=get_display(arabic_reshaper.reshape(
+                           finalEvents_EN.loc[ind,'Event Name']))
+                    except:
+                        pass
+
+            if(len(finalEvents_AR) > 0):
+                #finalEvents_AR['مستوى القلق'] = 'مرتفع'
+                for ind,row in finalEvents_AR.iterrows():
+                    try:
+                        finalEvents_AR.loc[ind,'اسم الحدث']=get_display(arabic_reshaper.reshape(finalEvents_AR.loc[ind,'اسم الحدث']))
+                        #finalEvents_AR.loc[ind,'مستوى القلق']=get_display(arabic_reshaper.reshape(finalEvents_AR.loc[ind,'مستوى القلق']))
+                    except:
+                        pass
+                finalEvents_AR = finalEvents_AR.rename(columns={'اسم الحدث': get_display(arabic_reshaper.reshape('اسم الحدث')) })
+                #finalEvents_AR = finalEvents_AR.rename(columns={'مستوى القلق': get_display(arabic_reshaper.reshape('مستوى القلق')) })
+                finalEvents_AR = finalEvents_AR.rename(columns={'تاريخ الحدث': get_display(arabic_reshaper.reshape('تاريخ الحدث')) })
+
+
+
+
+            # In[64]:
+
+
+            if(len(finalEvents_EN) > 0):
+                render_mpl_table(finalEvents_EN, header_columns=0, col_width=4, tran ='Events-EN')
+            if(len(finalEvents_AR) > 0):
+                render_mpl_table(finalEvents_AR, header_columns=0, col_width=4, tran ='Events-AR')
 
 
     # In[ ]:
@@ -1198,9 +1194,9 @@ def reportP(pid,dates , is_true):
     pdf.setFillColor(colors.HexColor('#808080'))
     pdf.drawString(100,650, "Events With Highest Level of Anxiety")
 
-    if(GoogleCalendar == True and len(finalEvents_EN)>0):
+    if(GoogleCalendar == 'true' and len(finalEvents_EN)>0):
         pdf.drawImage("Events-EN.png", 30, 500, width=550,height=100)
-    elif (GoogleCalendar == True and len(finalEvents_EN)<0  ):
+    elif (GoogleCalendar == 'true' and len(finalEvents_EN)<0  ):
         pdf.setFont("Helvetica", 15)
         pdf.setFillColor(colors.HexColor('#23495f'))
 
@@ -1419,9 +1415,9 @@ def reportP(pid,dates , is_true):
     pdf.drawString(200,650, EV)
 
 
-    if(GoogleCalendar ==True and len(finalEvents_AR)>0):
+    if(GoogleCalendar == 'true' and len(finalEvents_AR)>0):
         pdf.drawImage("Events-AR.png", 20, 500, width=550,height=100)
-    elif (GoogleCalendar == True and len(finalEvents_EN)<0):
+    elif (GoogleCalendar == 'true' and len(finalEvents_EN)<0):
         pdf.setFont("Arabic", 18)
         pdf.setFillColor(colors.HexColor('#23495f'))
 
@@ -1467,7 +1463,7 @@ def reportP(pid,dates , is_true):
     else:
         for x in range(0,len(dfarray)):
             os.remove('AL'+str(x)+'pdf.png')
-    if(GoogleCalendar ==True and len(finalEvents_AR) > 0 ):
+    if(GoogleCalendar == 'true' and len(finalEvents_AR) > 0 ):
         os.remove('Events-AR.png')
         os.remove('Events-EN.png')
     if(len(analysis_AR)>0):
