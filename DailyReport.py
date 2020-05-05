@@ -388,7 +388,8 @@ def reportD(pid):
 
             u'AL_graph': AlLink,
             u'improvement': float("{:.2f}".format(improvement)),#float("{:.2f}".format(improvement))   
-            u'anxiety_level' : float(today_al)   
+            u'anxiety_level' : float(today_al),
+            u'date': str(today)
         })
         
         yesterday = plot_df.iloc[6]['Anxiety']
@@ -400,7 +401,8 @@ def reportD(pid):
 
             u'AL_graph': AlLink,
             u'improvement': -1 ,
-            u'anxiety_level' : float(today_al)
+            u'anxiety_level' : float(today_al),
+            u'date': str(today)
         })
 
 
