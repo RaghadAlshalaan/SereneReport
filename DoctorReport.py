@@ -1,9 +1,8 @@
-    #!/usr/bin/env python
-    # coding: utf-8
+# !/usr/bin/env python
+# coding: utf-8
 
-    # In[96]:
-def doctor(pid , did):
-
+# In[96]:
+def doctor(pid, did):
     import datetime
     import pandas as pd
     import numpy as np
@@ -12,9 +11,8 @@ def doctor(pid , did):
     from firebase_admin import firestore
     from firebase_admin import storage
     import pyrebase
-
     from datetime import date, timedelta
-    import urllib.request, json 
+    import urllib.request, json
     import time
     from matplotlib import pyplot as plt
     import matplotlib.dates as mdates
@@ -23,12 +21,11 @@ def doctor(pid , did):
     from IPython.display import display
     from Model import trainData
     import random
-    #from google.cloud import storage
+    # from google.cloud import storage
 
     from matplotlib.patches import Ellipse
     import seaborn as sns
     import matplotlib.patches as mpatches
-
 
     # signal processing
     from scipy import signal
@@ -40,59 +37,51 @@ def doctor(pid , did):
     # misc
     import warnings
 
-    #generate pdf
+    # generate pdf
     from reportlab.pdfgen import canvas
     from reportlab.lib.colors import Color, lightblue, black
 
-
     # In[97]:
 
-
     if not firebase_admin._apps:
-            cred = credentials.Certificate("serene-firebase-adminsdk.json")
-            app = firebase_admin.initialize_app(cred ,  {
+        cred = credentials.Certificate("serene-firebase-adminsdk.json")
+        app = firebase_admin.initialize_app(cred, {
             'storageBucket': 'serene-2dfd6.appspot.com',
-            }, name='[DEFAULT]')
+        }, name='[DEFAULT]')
     else:
-            app = firebase_admin.get_app()
+        app = firebase_admin.get_app()
     db = firestore.client()
 
-
     # In[98]:
-
 
     today = datetime.datetime.now()
     timestamp = today.strftime("%Y-%m-%d")
     bucket = storage.bucket(app=app)
 
-
     # ## Get data from storage and get list of dates (2 weeks)
 
     # In[99]:
 
-
-    #get a a list of date between start and end date 
+    # get a a list of date between start and end date
     userID = pid
     doctorID = did
-    duration = 15 # two weeks
-    dates =[]
-    for x in range(0 ,duration):
-        today=date.today() #revert to original
-        #yesterday = today - datetime.timedelta(days=1)
-        start_date = (today-timedelta(days=duration-x)).isoformat()
+    duration = 15  # two weeks
+    dates = []
+    for x in range(0, duration):
+        today = date.today()  # revert to original
+        # yesterday = today - datetime.timedelta(days=1)
+        start_date = (today - timedelta(days=duration - x)).isoformat()
         dates.append(start_date)
-
 
     # In[100]:
 
-
-    df= pd.DataFrame()
+    df = pd.DataFrame()
     notAvailableDates = []
     # loop through the storage and get the data
-    sleep =[]
-    for x in range(0 ,len(dates)):
-        #Sleep
-        blob = bucket.blob(userID+"/fitbitData/"+dates[x]+"/"+dates[x]+"-sleep.json")
+    sleep = []
+    for x in range(0, len(dates)):
+        # Sleep
+        blob = bucket.blob(userID + "/fitbitData/" + dates[x] + "/" + dates[x] + "-sleep.json")
         # download the file 
         u = blob.generate_signed_url(datetime.timedelta(seconds=300), method='GET')
         try:
@@ -103,8 +92,8 @@ def doctor(pid , did):
             notAvailableDates.append(dates[x])
             pass
 
-        #Activity (Steps)
-        blob = bucket.blob(userID+"/fitbitData/"+dates[x]+"/"+dates[x]+"-activity.json")
+        # Activity (Steps)
+        blob = bucket.blob(userID + "/fitbitData/" + dates[x] + "/" + dates[x] + "-activity.json")
         # download the file 
         u = blob.generate_signed_url(datetime.timedelta(seconds=300), method='GET')
         try:
@@ -115,8 +104,9 @@ def doctor(pid , did):
             notAvailableDates.append(dates[x])
             pass
 
-        #heartrate
-        blob = bucket.blob(userID+"/fitbitData/"+dates[x]+"/"+dates[x]+"-heartrate.json")
+        # heartrate
+        heart_rate = {}
+        blob = bucket.blob(userID + "/fitbitData/" + dates[x] + "/" + dates[x] + "-heartrate.json")
         u = blob.generate_signed_url(datetime.timedelta(seconds=300), method='GET')
         try:
             with urllib.request.urlopen(u) as url:
@@ -126,122 +116,97 @@ def doctor(pid , did):
             df_heartrate.time.apply(str)
             df_heartrate['time'] = pd.to_datetime(df_heartrate['time'])
             df_heartrate['hour'] = df_heartrate['time'].apply(lambda time: time.strftime('%H'))
-            df_heartrate.drop(['time'],axis=1, inplace = True)
+            df_heartrate.drop(['time'], axis=1, inplace=True)
             heart_rate = df_heartrate.groupby(["hour"], as_index=False).mean()
             heart_rate['sleepMin'] = sleepMinutes
             heart_rate['TotalSteps'] = steps
             heart_rate['date'] = dates[x]
-            heart_rate = heart_rate.astype({"hour": int})  
+            heart_rate = heart_rate.astype({"hour": int})
         except:
             notAvailableDates.append(dates[x])
             pass
 
         # append dataframe
-        df = df.append(heart_rate, ignore_index = True)
-
+        df = df.append(heart_rate, ignore_index=True)
 
     # In[101]:
 
-
     notAvailableDates
     notSyncedDates = pd.DataFrame()
-    notSyncedDates ['date'] = notAvailableDates 
-
+    notSyncedDates['date'] = notAvailableDates
 
     # In[102]:
 
-
     notSyncedDates = notSyncedDates.drop_duplicates()
-
 
     # In[103]:
 
-
     notSyncedDates
-
 
     # ### Get user location
 
     # In[104]:
 
-
     # get location from database
     loc_df = pd.DataFrame()
     locID = []
-    locations = db.collection(u'PatientLocations').where(u'patientID', u'==', userID ).stream()
+    locations = db.collection(u'PatientLocations').where(u'patientID', u'==', userID).stream()
 
     for location in locations:
         loc1 = location.to_dict()
         locID.append(location.id)
-        loc_df = loc_df.append(pd.DataFrame(loc1,index=[0]),ignore_index=True)
+        loc_df = loc_df.append(pd.DataFrame(loc1, index=[0]), ignore_index=True)
 
     loc_df['id'] = locID
 
-
-
     # In[105]:
 
-
-    loc_df.drop(['anxietyLevel', 'lat','lng', 'patientID'  ], axis=1, inplace = True)
-
+    loc_df.drop(['anxietyLevel', 'lat', 'lng', 'patientID'], axis=1, inplace=True)
 
     # In[106]:
-
 
     loc_df.time.apply(str)
     loc_df['time'] = pd.to_datetime(loc_df['time'])
     loc_df['date'] = pd.to_datetime(loc_df['time'], format='%Y:%M:%D').dt.date
     loc_df['hour'] = loc_df['time'].apply(lambda time: time.strftime('%H'))
-    loc_df.drop(['time'], axis=1, inplace = True)
-    loc_df.hour = loc_df.hour.astype(int) 
+    loc_df.drop(['time'], axis=1, inplace=True)
+    loc_df.hour = loc_df.hour.astype(int)
     loc_df.date = loc_df.date.astype(str)
     df.date = df.date.astype(str)
 
-
     # In[107]:
 
-
-    dfinal = pd.merge(left=df, 
-                      right = loc_df,
-                      how = 'left',
-                      left_on=['hour','date'],
-                      right_on=['hour','date']).ffill()
-
+    dfinal = pd.merge(left=df,
+                      right=loc_df,
+                      how='left',
+                      left_on=['hour', 'date'],
+                      right_on=['hour', 'date']).ffill()
 
     # ### Test data into model
 
     # In[108]:
 
-
-    #test model 
+    # test model
     train_df = dfinal.rename(columns={'value': 'Heartrate'})
 
-
     # In[109]:
-
 
     Labeled_df = pd.DataFrame()
     Labeled_df = trainData(train_df)
 
-
     # In[110]:
 
-
-    Labeled_df.drop(['lon'],axis=1, inplace = True)
-
+    Labeled_df.drop(['lon'], axis=1, inplace=True)
 
     # In[111]:
 
-
     Labeled_df['name'].fillna("Not given", inplace=True)
     Labeled_df['id'].fillna("Not given", inplace=True)
-    Labeled_df['anxiety_assigned'].fillna('Not given', inplace = True)
-
+    Labeled_df['anxiety_assigned'].fillna('Not given', inplace=True)
 
     # In[112]:
 
-
-    # Update firebase with the user anxiety level 
+    # Update firebase with the user anxiety level
     for row in Labeled_df.itertuples():
         if row.id != 'Not given':
             if row.Label == 'Low' or row.Label == 'LowA':
@@ -249,38 +214,32 @@ def doctor(pid , did):
             elif row.Label == 'Meduim':
                 anxietyLevel = '2'
             else:
-                anxietyLevel = '3' 
-            if row.anxiety_assigned == False or row.anxiety_assigned == 'Not given': 
+                anxietyLevel = '3'
+            if row.anxiety_assigned == False or row.anxiety_assigned == 'Not given':
                 doc_ref = db.collection(u'PatientLocations').document(row.id)
                 doc_ref.update({
-                                u'anxietyLevel':anxietyLevel,
-                                u'anxiety_assigned': True
-                         })
-
+                    u'anxietyLevel': anxietyLevel,
+                    u'anxiety_assigned': True
+                })
 
     # ### Show the places with highest anxiety level
 
     # In[113]:
 
-
-    # Show the highest level 
+    # Show the highest level
     df_high = pd.DataFrame()
     df_high = Labeled_df[Labeled_df.Label == 'High']
-
 
     # # Get patient information
 
     # In[114]:
 
-
     docDf = pd.DataFrame()
     doc_ref = db.collection(u'Patient').document(userID)
     doc = doc_ref.get().to_dict()
-    docDf = docDf.append(pd.DataFrame(doc,index=[0]),ignore_index=True)
-
+    docDf = docDf.append(pd.DataFrame(doc, index=[0]), ignore_index=True)
 
     # In[115]:
-
 
     age1 = docDf['age'].values
     name1 = docDf['name'].values
@@ -290,8 +249,9 @@ def doctor(pid , did):
     chronicD1 = docDf['chronicDiseases'].values
     smoke1 = docDf['smokeCigarettes'].values
     gad1 = docDf['GAD-7ScaleScore'].values
+    gender1 = docDf['gender'].values
 
-    age = age1[0] 
+    age = age1[0]
     name = name1[0]
     emp = emp1[0]
     mar = mar1[0]
@@ -299,12 +259,11 @@ def doctor(pid , did):
     chronicD = chronicD1[0]
     smoke = smoke1[0]
     gad = gad1[0]
-
+    gender = gender1[0]
 
     # ## Storage intiliazation
 
     # In[116]:
-
 
     firebaseConfig = {
         "apiKey": "AIzaSyBoxoXwFm9TuFysjQYag0GB1NEPyBINlTU",
@@ -315,139 +274,118 @@ def doctor(pid , did):
         "messagingSenderId": "461213981433",
         "appId": "1:461213981433:web:62428e3664182b3e58e028",
         "measurementId": "G-J66VP2Y3CR"
-      }
+    }
 
     firebase = pyrebase.initialize_app(firebaseConfig)
     storage = firebase.storage()
-
 
     # # HR
 
     # In[117]:
 
-
-    sns.set( rc={'axes.facecolor': '#fcfeff'})
-
+    sns.set(rc={'axes.facecolor': '#fcfeff'})
 
     # In[118]:
-
 
     # Take the highest heartrate in a day
     dfhr = pd.DataFrame()
     hr = []
     hrr = 0
     rowCount = 1
-    for x in range(0 ,len(dates)):
+    for x in range(0, len(dates)):
         rowCount = 0
         for row in df.itertuples():
             if (row.date == dates[x]):
-                if(row.value > rowCount):
+                if (row.value > rowCount):
                     rowCount = row.value
         hr.append(rowCount)
-
 
     dfhr['date'] = dates
     dfhr['hr'] = hr
 
-
     # In[119]:
-
 
     plt.figure(figsize=(20, 7))
 
-    plt.plot(dfhr['date'], dfhr['hr'], color="#a03e3e", linewidth=2)
+    plt.plot(dfhr['date'], dfhr['hr'], color="#a03e3e", linewidth=4)
     plt.xlabel("Date", fontsize=16)
     plt.ylabel("Amplitude (bpm)")
     plt.tick_params(axis='x', rotation=70)
     plt.tight_layout()
 
-
     plt.savefig('hr.png', dpi=None)
-    plt.show()
-    plt.draw()
-
+    # plt.show()
+    # plt.draw()
 
     # # Steps
 
     # In[120]:
 
-
     dfstep = pd.DataFrame()
     avgSteps = []
     totalsteps = 0
     rowCount = 1
-    for x in range(0 ,len(dates)):
+    for x in range(0, len(dates)):
         for row in Labeled_df.itertuples():
             if (row.date == dates[x]):
                 rowCount += 1
                 totalsteps += row.TotalSteps
-        avgSteps.append(totalsteps/rowCount)
-
+        avgSteps.append(totalsteps / rowCount)
 
     dfstep['date'] = dates
     dfstep['Steps'] = avgSteps
 
-
     # In[121]:
-
 
     # Plot Steps
 
-
-    plt.figure(figsize=(20,7))
-    plt.fill_between(dfstep['date'], dfstep['Steps'], color="#ffd6b0", linewidth=1)
-    plt.plot(dfstep['date'], dfstep['Steps'], color="#ff5900", linewidth=1)
+    plt.figure(figsize=(20, 7))
+    # plt.fill_between(dfstep['date'], dfstep['Steps'], color="#ffd6b0", linewidth=1)
+    plt.plot(dfstep['date'], dfstep['Steps'], color="#ff5900", linewidth=4, marker='o', markerfacecolor='#ffd6b0')
     plt.xlabel("Date", fontsize=16)
     plt.ylabel("Total steps")
     plt.tick_params(axis='x', rotation=70)
     plt.tight_layout()
 
     plt.savefig('steps.png', dpi=None)
-    plt.show()
-    plt.draw()
-
+    # plt.show()
+    # plt.draw()
 
     # # Sleep
 
     # In[122]:
 
-
     dfsleep = pd.DataFrame()
     sleeps = []
     totalsleep = 0
     rowCount = 1
-    for x in range(0 ,len(dates)):
+    for x in range(0, len(dates)):
         for row in df.itertuples():
             if (row.date == dates[x]):
                 totalsleep = row.sleepMin
-        sleeps.append(totalsleep/60)
-
+        sleeps.append(totalsleep / 60)
 
     dfsleep['date'] = dates
-    dfsleep['sleep'] =  sleeps
-
+    dfsleep['sleep'] = sleeps
 
     # In[123]:
 
-
-    figs = dfsleep.plot.bar(x = 'date', y = 'sleep', rot = 70, color= '#3629a6', capstyle = 'round').get_figure()
+    figs = dfsleep.plot.bar(x='date', y='sleep', rot=70, width=0.25, color='#3629a6', capstyle='round').get_figure()
     figs.set_size_inches(20, 10)
     plt.xlabel('Date')
     plt.ylabel('Sleep (hr)')
-    plt.show()
-    plt.draw()
+    # plt.show()
+    # plt.draw()
     plt.tight_layout()
 
     figs.savefig('sleep.png', dpi=None)
-
 
     # # AL
 
     # In[124]:
 
-
     # Change Label values to num, to represent them in a barchart
-    nums=[]
+    nums = []
     for row in Labeled_df.itertuples():
         if row.Label == 'Low' or row.Label == 'LowA':
             nums.append(1)
@@ -457,67 +395,61 @@ def doctor(pid , did):
             nums.append(3)
     Labeled_df['numLabel'] = nums
 
-
     # In[125]:
-
 
     # Get anxiety level by day and store it in a new data frame
     plot_df = pd.DataFrame()
     avgAnxiety = []
     totalAnxiety = 0
     rowCount = 1
-    for x in range(0 ,len(dates)):
+    for x in range(0, len(dates)):
         totalAnxiety = 0
         rowCount = 1
         for row in Labeled_df.itertuples():
             if (row.date == dates[x]):
                 rowCount += 1
                 totalAnxiety += row.numLabel
-        avgAnxiety.append(totalAnxiety/rowCount)
-
+        avgAnxiety.append(totalAnxiety / rowCount)
 
     plot_df['date'] = dates
     plot_df['Anxiety'] = avgAnxiety
 
-
     # In[126]:
-
 
     fig, ax = plt.subplots()
     # Draw the stem and circle
     c1 = '#9dd6f5'
     c2 = '#4ba0d1'
     c3 = '#23495f'
+    bar_width = 0.25
     for t, y in zip(plot_df["date"], plot_df["Anxiety"]):
 
-        c=""
+        c = ""
 
-        if(y <= 1):
+        if (y <= 1):
             c = c1
 
         elif (1 < y <= 2):
             c = c2
 
-        elif ( y > 2): 
+        elif (y > 2):
             c = c3
 
+        plt.bar([t, t], [0, y], bar_width, color=c)
 
-        ax.plot([t,t], [0,y], color=c, marker="o",markevery=(1,2),linewidth=4,markeredgewidth=4)
+    colors = [[c1, c1], [c2, c2], [c3, c3]]
+    categories = ['Low', 'Meduim', 'High']
 
-    colors = [[c1,c1],[c2,c2],[c3,c3]]          
-    categories = ['Low','Meduim','High']
-
-    #create dict
-    legend_dict=dict(zip(categories,colors))
-    #create patches
+    # create dict
+    legend_dict = dict(zip(categories, colors))
+    # create patches
     patchList = []
     for key in legend_dict:
-            data_key = mpatches.Patch(facecolor=legend_dict[key][0], 
-                                      edgecolor=legend_dict[key][1], label=key)
-            patchList.append(data_key)
+        data_key = mpatches.Patch(facecolor=legend_dict[key][0],
+                                  edgecolor=legend_dict[key][1], label=key)
+        patchList.append(data_key)
 
-    ax.legend(handles=patchList,ncol=len(categories), fontsize=12)   
-
+    ax.legend(handles=patchList, ncol=len(categories), fontsize=12)
 
     plt.tick_params(axis='x', rotation=70)
 
@@ -527,135 +459,108 @@ def doctor(pid , did):
     fig.set_size_inches(15.5, 10)
     plt.tight_layout()
 
-
     plt.xlabel('Date')
-
 
     ax.yaxis.set_label_coords(-0.02, 0.48)
 
+    # volo insert
+    # plt.show()
 
-
-
-
-
-
-
-    fig.savefig('AL.png', dpi = None)
-
+    fig.savefig('AL.png', dpi=None)
 
     # # Location Analysis
 
     # In[127]:
 
-
     # get location from database
     new_loc = pd.DataFrame()
     locID = []
-    locations = db.collection(u'PatientLocations').where(u'patientID', u'==', userID ).stream()
+    locations = db.collection(u'PatientLocations').where(u'patientID', u'==', userID).stream()
 
     for location in locations:
         loc = location.to_dict()
         locID.append(location.id)
-        new_loc = new_loc.append(pd.DataFrame(loc,index=[0]),ignore_index=True)
+        new_loc = new_loc.append(pd.DataFrame(loc, index=[0]), ignore_index=True)
 
     new_loc['id'] = locID
 
-
     # In[128]:
-
 
     new_loc.time.apply(str)
     new_loc['time'] = pd.to_datetime(new_loc['time'])
     new_loc['date'] = pd.to_datetime(new_loc['time'], format='%Y:%M:%D').dt.date
-    new_loc.drop(['time'], axis=1, inplace = True)
+    new_loc.drop(['time'], axis=1, inplace=True)
     new_loc.date = new_loc.date.astype(str)
-
 
     # In[129]:
 
-
-    new_loc = new_loc[(new_loc.date >= dates[0]) & (new_loc.date <= dates[len(dates)-1])]
-
+    new_loc = new_loc[(new_loc.date >= dates[0]) & (new_loc.date <= dates[len(dates) - 1])]
 
     # In[130]:
 
-
     names = []
-    Name =""
+    Name = ""
     for row in new_loc.itertuples():
-        Name  = row.nearestLoc         
+        Name = row.nearestLoc
         names.append(Name)
-
 
     # In[131]:
 
-
-    new_name =pd.DataFrame()
-    new_name ['name']= names
-
+    new_name = pd.DataFrame()
+    new_name['name'] = names
 
     # In[132]:
-
 
     new_name = new_name.drop_duplicates()
     new_name.dropna()
 
-
     # In[133]:
 
-
     fnames = []
-    fName =""
+    fName = ""
     for row in new_name.itertuples():
-        fName  = row.name
+        fName = row.name
         fnames.append(fName)
 
-
     # In[134]:
-
 
     analysis = pd.DataFrame()
     count = 0
     i = 0
-    #label = ""
+    # label = ""
     locationName = ""
     near = ''
     nearLocs = []
     counts = []
-    #labels = []
+    # labels = []
     locationNames = []
-    for x in range(0,len(fnames)):
+    for x in range(0, len(fnames)):
         count = 0
         locName = fnames[i]
         for row in new_loc.itertuples():
-            if(locName == row.nearestLoc):
-                if(row.anxietyLevel=='3'):
-                    count+=1
-                    #label = row.anxietyLevel
+            if (locName == row.nearestLoc):
+                if (row.anxietyLevel == '3'):
+                    count += 1
+                    # label = row.anxietyLevel
                     locationName = row.name
-                    near = row.nearestLoc    
+                    near = row.nearestLoc
 
-
-        i+=1           
+        i += 1
         counts.append(count)
-        #labels.append(label)
+        # labels.append(label)
         locationNames.append(locationName)
         nearLocs.append(near)
 
-    analysis ['Location'] = locationNames
-    analysis ['Frequency'] = counts
-    #analysis ['Anxiety Level'] = labels
-    analysis ['Nearest Location'] = nearLocs
-
+    analysis['Location'] = locationNames
+    analysis['Frequency'] = counts
+    # analysis ['Anxiety Level'] = labels
+    analysis['Nearest Location'] = nearLocs
 
     # In[135]:
 
-
-    newA = analysis.drop(analysis[analysis['Number of occurrences'] == 0].index, inplace= True)
-
+    # newA = analysis.drop(analysis[analysis['Number of occurrences'] == 0].index, inplace=True)
 
     # In[136]:
-
 
     import six
     import arabic_reshaper
@@ -665,294 +570,253 @@ def doctor(pid , did):
     from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.lib import colors
 
-
     # In[137]:
-
 
     def render_mpl_table(data, col_width=5.0, row_height=0.625, font_size=14,
                          header_color='#23495f', row_colors=['#e1eff7', 'w'], edge_color='#23495f',
                          bbox=[0, 0, 1, 1], header_columns=0,
-                        ax=None, **kwargs):
-
+                         ax=None, **kwargs):
 
         if ax is None:
             size = (np.array(data.shape[::-1]) + np.array([0, 1])) * np.array([col_width, row_height])
             fig, ax = plt.subplots(figsize=size)
             ax.axis('off')
 
-
-
-        mpl_table = ax.table(cellText=data.values, bbox=bbox, colLabels=data.columns, cellLoc='center'  ,**kwargs)
+        mpl_table = ax.table(cellText=data.values, bbox=bbox, colLabels=data.columns, cellLoc='center', **kwargs)
 
         mpl_table.auto_set_font_size(False)
         mpl_table.set_fontsize(font_size)
 
-        for k, cell in  six.iteritems(mpl_table._cells):
+        for k, cell in six.iteritems(mpl_table._cells):
             cell.set_edgecolor(edge_color)
             if k[0] == 0 or k[1] < header_columns:
                 cell.set_text_props(weight='bold', color='w')
                 cell.set_facecolor(header_color)
             else:
-                cell.set_facecolor(row_colors[k[0]%len(row_colors) ])
+                cell.set_facecolor(row_colors[k[0] % len(row_colors)])
                 cell.alignment = 'center'
 
-        fig.savefig('Location.png', dpi = 100)
+        fig.savefig('Location.png', dpi=100)
         return ax
-
 
     # In[138]:
 
-
-    if(len(analysis) > 0):
-        for ind,row in analysis.iterrows():
-            analysis.loc[ind,'Nearest Location']=get_display(arabic_reshaper.reshape(analysis.loc[ind,'Nearest Location']))
-
+    if (len(analysis) > 0):
+        for ind, row in analysis.iterrows():
+            analysis.loc[ind, 'Nearest Location'] = get_display(
+                arabic_reshaper.reshape(analysis.loc[ind, 'Nearest Location']))
 
     # In[139]:
 
-
-    if(len(analysis) > 0):
+    if (len(analysis) > 0):
         render_mpl_table(analysis, header_columns=0, col_width=4)
-
 
     # # improvement
 
     # In[153]:
 
-
-    # get yesterday improvement 
+    # get yesterday improvement
     today_al = float("{:.2f}".format(plot_df['Anxiety'].mean()))
 
     improvement = -1
 
-
     # In[165]:
 
-
     try:
-        ID = "Doctor"+userID
-        doc_ref = db.collection(u'DoctorReports').document(ID)
+        doc_ref = db.collection(u'Patient').document(userID)
         doc = doc_ref.get().to_dict()
         prev = float("{:.2f}".format(doc['anxiety_level']))
         # calculate the improvement
-        improvement= float("{:.2f}".format(((prev - today_al)/3)*100 ))    
+        improvement = float("{:.2f}".format(((prev - today_al) / 3) * 100))
 
     except:
-        improvement = -1
-
+        improvement = 404
 
     # ## Generate doctor report pdf and store it in database
     # 
 
     # In[143]:
 
-
     pdf = canvas.Canvas('Doctor.pdf')
     pdf.setTitle('Patient report')
 
-
-
-    pdf.drawImage("serene .png", 150, 730, width=300,height=130, mask= 'auto')
-
+    pdf.drawImage("serene .png", 150, 730, width=300, height=130, mask='auto')
 
     pdf.setFillColor(colors.HexColor('#e1eff7'))
-    pdf.roundRect(57,400, 485,200,4,fill=1, stroke= 0)
+    pdf.roundRect(57, 400, 485, 200, 4, fill=1, stroke=0)
 
     pdf.setFont("Helvetica-Bold", 20)
     pdf.setFillColor(colors.HexColor('#23495f'))
 
-    pdf.drawString(100,570, "Patient Information")
+    pdf.drawString(100, 570, "Patient Information")
 
     pdf.setFont("Helvetica-Bold", 15)
-    pdf.drawString(150,540, "Name: " )
-    pdf.drawString(150,520, "Age: " )
-    pdf.drawString(150,500, "Employment Status: " )
-    pdf.drawString(150,480, "Martial Status: " )
-    pdf.drawString(150,460, "Monthly Income: " )
-    pdf.drawString(150,440, "Chronic Diseases: " )
-    pdf.drawString(150,420, "Cigarette Smoker: " ) 
+    pdf.drawString(150, 540, "Name: ")
+    pdf.drawString(150, 520, "Age: ")
+    pdf.drawString(150, 500, "Employment Status: ")
+    pdf.drawString(150, 480, "Martial Status: ")
+    pdf.drawString(150, 460, "Monthly Income: ")
+    pdf.drawString(150, 440, "Chronic Diseases: ")
+    pdf.drawString(150, 420, "Cigarette Smoker: ")
+    pdf.drawString(150, 410, "Gender: ")
 
     pdf.setFont("Helvetica", 15)
     pdf.setFillColor(black)
-    pdf.drawString(210,540,  name)
-    pdf.drawString(210,520,  age)
-    pdf.drawString(310,500,  emp)
-    pdf.drawString(260,480,  mar)
-    pdf.drawString(290,460,  income)
-    pdf.drawString(290,440, chronicD)
-    pdf.drawString(290,420,  smoke) 
+    pdf.drawString(210, 540, name)
+    pdf.drawString(210, 520, age)
+    pdf.drawString(310, 500, emp)
+    pdf.drawString(260, 480, mar)
+    pdf.drawString(290, 460, income)
+    pdf.drawString(290, 440, chronicD)
+    pdf.drawString(290, 420, smoke)
+    pdf.drawString(220, 410, gender)
 
     pdf.setFillColor(colors.HexColor('#bfbfbf'))
-    pdf.roundRect(370,560, 125,30,4,fill=1, stroke= 0)
+    pdf.roundRect(370, 560, 125, 30, 4, fill=1, stroke=0)
 
-    pdf.setFillColorRGB(1,1,1)
-    pdf.drawString(375,570, "GAD-7 Score = ")
+    pdf.setFillColorRGB(1, 1, 1)
+    pdf.drawString(375, 570, "GAD-7 Score = ")
 
     pdf.setFont("Helvetica-Bold", 15)
-    pdf.drawString(480,570, gad)
-
-
+    pdf.drawString(480, 570, gad)
 
     pdf.setFillColor(colors.HexColor('#e1eff7'))
-    pdf.roundRect(57,160, 485,200,4,fill=1, stroke= 0)
+    pdf.roundRect(57, 160, 485, 200, 4, fill=1, stroke=0)
 
     pdf.setFont("Helvetica-Bold", 16)
     pdf.setFillColor(colors.HexColor('#23495f'))
 
-    pdf.drawString(115,330, "Report Duration From: (" + dates[0] +" To: "+ dates[len(dates)-1]+ ")")
+    pdf.drawString(115, 330, "Report Duration From: (" + dates[0] + " To: " + dates[len(dates) - 1] + ")")
 
     pdf.setFont("Helvetica-Bold", 14)
-    pdf.drawString(250,300, "Improvements: ")
+    pdf.drawString(250, 300, "Improvements: ")
 
     pdf.setFont("Helvetica-Bold", 20)
-    if(improvement == -1):
-        pdf.drawString(290,260, "--")
+    if (improvement == 404):
+        pdf.drawString(290, 260, "--")
 
     else:
-        pdf.drawString(280,260, str(improvement) +'%')
-
+        pdf.drawString(280, 260, str(improvement) + '%')
 
     pdf.showPage()
 
-
-
-    pdf.drawImage("serene .png", 150, 730, width=300,height=130, mask= 'auto')
-
-
+    pdf.drawImage("serene .png", 150, 730, width=300, height=130, mask='auto')
 
     pdf.setFont("Helvetica-Bold", 20)
     pdf.setFillColor(colors.HexColor('#808080'))
 
-    pdf.drawString(100,650, "Anxiety Level")
-    pdf.drawImage("AL.png", 57, 400, width=485,height=200)
+    pdf.drawString(100, 650, "Anxiety Level")
+    pdf.drawImage("AL.png", 57, 400, width=485, height=200)
 
-
-    pdf.drawString(100,330, "Heart Rate")
-    pdf.drawImage("hr.png", 57, 100, width=485,height=200)
+    pdf.drawString(100, 330, "Heart Rate")
+    pdf.drawImage("hr.png", 57, 100, width=485, height=200)
 
     pdf.showPage()
 
-    pdf.drawImage("serene .png", 150, 730, width=300,height=130, mask= 'auto')
+    pdf.drawImage("serene .png", 150, 730, width=300, height=130, mask='auto')
 
     pdf.setFont("Helvetica-Bold", 20)
     pdf.setFillColor(colors.HexColor('#808080'))
 
-    pdf.drawString(100,650, "Activity Rate")
-    pdf.drawImage("steps.png", 57, 400, width=485,height=200)
+    pdf.drawString(100, 650, "Activity Rate")
+    pdf.drawImage("steps.png", 57, 400, width=485, height=200)
 
-    pdf.drawString(100,350, "Sleep Analysis")
-    pdf.drawImage("sleep.png", 57, 100, width=485,height=200)
+    pdf.drawString(100, 350, "Sleep Analysis")
+    pdf.drawImage("sleep.png", 57, 100, width=485, height=200)
 
     pdf.showPage()
 
-    pdf.drawImage("serene .png", 150, 730, width=300,height=130, mask= 'auto')
+    pdf.drawImage("serene .png", 150, 730, width=300, height=130, mask='auto')
 
     pdf.setFont("Helvetica-Bold", 20)
     pdf.setFillColor(colors.HexColor('#808080'))
 
-    pdf.drawString(100,650, "Locations With Highest Level of Anxiety")
+    pdf.drawString(100, 650, "Locations With Highest Level of Anxiety")
 
-    if(len(analysis) > 0):
-        pdf.drawImage("Location.png", 30, 200, width=570,height=100)
+    if (len(analysis) > 0):
+        pdf.drawImage("Location.png", 30, 200, width=570, height=100)
 
     else:
         pdf.setFont("Helvetica", 15)
         pdf.setFillColor(colors.HexColor('#23495f'))
-        t = pdf.beginText(130,550)
+        t = pdf.beginText(130, 550)
         text = [
-        name +" condition was stable through this period,", 
-        "no locations with high anxiety level were detected." ]
+            name + " condition was stable through this period,",
+            "no locations with high anxiety level were detected."]
         for line in text:
             t.textLine(line)
 
         pdf.drawText(t)
 
-
-    if(len(notSyncedDates) != 0):  
+    if (len(notSyncedDates) != 0):
         pdf.setFont("Helvetica", 12)
         pdf.setFillColor(colors.HexColor('#d40027'))
-        pdf.drawString(75,100, "Note: Below dates are missing, because they were not synced correctly:")
+        pdf.drawString(75, 100, "Note: Below dates are missing, because they were not synced correctly:")
         i = 70
         for row in notSyncedDates.itertuples():
-            pdf.drawString(85,i, '- '+ row.date)
-            i = i-20
-
-
+            pdf.drawString(85, i, '- ' + row.date)
+            i = i - 20
 
     pdf.save()
 
-
     # In[144]:
 
-
-    #new method
-    doct = storage.child(userID+"/DoctorReport/doctorReport").put('Doctor.pdf')
-
+    # new method
+    doct = storage.child(userID + "/DoctorReport/doctorReport").put('Doctor.pdf')
 
     # In[145]:
 
-
     linkDF = pd.DataFrame()
-    linkDF = linkDF.append(pd.DataFrame(doct,index=[0]),ignore_index=True)
-
+    linkDF = linkDF.append(pd.DataFrame(doct, index=[0]), ignore_index=True)
 
     # In[146]:
 
-
     token1 = linkDF['downloadTokens'].values
     token = token1[0]
-    link = storage.child(userID+"/DoctorReport/doctorReport").get_url(token)
-
+    link = storage.child(userID + "/DoctorReport/doctorReport").get_url(token)
 
     # In[149]:
 
-
-    from datetime import  datetime
-
+    from datetime import datetime
 
     # In[150]:
 
-
     date = datetime.now()
-
 
     # In[161]:
 
-
-
-
-        #store the data
-    ID = "Doctor"+userID
+    # store the data
+    random_id = random.randint(0, 1000)
+    ID = "Doctor" + userID + str(random_id)
     doc_rec = db.collection(u'DoctorReports').document(str(ID))
     doc_rec.set({
-        u'doctorId': doctorID ,
-        u'emailsent':True,
+        u'doctorId': doctorID,
+        u'emailsent': True,
         u'patientId': userID,
         u'reportTime': date,
         u'reportUrl': link,
-        u'improvement': improvement,
+        u'improvement': improvement
+    })
+    
+    doc_rec = db.collection(u'Patient').document(userID)
+    doc_rec.update({
         u'anxiety_level': today_al
-
-        })
-
-
+    })
+       
 
     # In[152]:
-
 
     os.remove("hr.png")
     os.remove("sleep.png")
     os.remove("AL.png")
     os.remove("steps.png")
     os.remove("Doctor.pdf")
-    if(len(analysis)>0):
+    if (len(analysis) > 0):
         os.remove("Location.png")
-        
-    return {"Doctor":"Yaaay"}
 
+    return {"Doctor": "Yaaay"}
 
     # In[ ]:
 
-
-
-
+if __name__ == "__main__":
+    doctor('UqTdL3T7MteuQHBe1aNfSE9u0Na2','707170')

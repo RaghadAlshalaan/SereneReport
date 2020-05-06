@@ -132,7 +132,11 @@ def reportD(pid):
             pass
 
         # append dataframe
-        df = df.append(heart_rate, ignore_index = True)
+        try:
+            df = df.append(heart_rate, ignore_index = True)
+        except:
+            pass
+        
 
 
     # ### Get user location
@@ -202,7 +206,7 @@ def reportD(pid):
     # In[14]:
 
 
-    Labeled_df.drop(['lon'],axis=1, inplace = True)
+   # Labeled_df.drop(['lon'],axis=1, inplace = True)
 
 
     # In[15]:
@@ -389,7 +393,7 @@ def reportD(pid):
             u'AL_graph': AlLink,
             u'improvement': float("{:.2f}".format(improvement)),#float("{:.2f}".format(improvement))   
             u'anxiety_level' : float(today_al),
-            u'date': str(today)
+            u'date': str(datetime.now().strftime("%Y-%m-%d"))
         })
         
         yesterday = plot_df.iloc[6]['Anxiety']
@@ -400,9 +404,9 @@ def reportD(pid):
         doc_rec.set({
 
             u'AL_graph': AlLink,
-            u'improvement': -1 ,
+            u'improvement': 404 ,
             u'anxiety_level' : float(today_al),
-            u'date': str(today)
+            u'date': str(datetime.now().strftime("%Y-%m-%d"))
         })
 
 
